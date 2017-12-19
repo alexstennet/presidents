@@ -1,14 +1,15 @@
 from helpers import main
-from random import shuffle
+from random import shuffle as rand_shuffle
 from itertools import cycle, combinations
 
 class Card:
     """
     class for cards and card comparisons
     """
-    def __init__(self, suite, value):
+    def __init__(self, suite, value, game=None):
         self.suite = suite
         self.value = value
+        self.game = game
 
     def same_suite(self, other):
         return self.suite == other.suite
@@ -16,8 +17,44 @@ class Card:
     def same_value(self, other):
         return self.value == other.value
 
+    def __lt__(self, other):
+        self.game_assert()
+        # convert the game's order to a (invalid) Hand so we can check if
+        # the card is in the list of game cards; this method follows for
+        # the rest of the comparisons 
+        game_cards_hand = Hand(self.game.order) 
+        return game_cards_hand.index(self) < game_cards_hand.index(other)
+
+    def __le__(self, other):
+        self.game_assert()
+        game_cards_hand = Hand(self.game.order) 
+        return game_cards_hand.index(self) <= game_cards_hand.index(other)
+
+    def __eq__(self, other):
+        self.game_assert()
+        game_cards_hand = Hand(self.game.order) 
+        return game_cards_hand.index(self) == game_cards_hand.index(other)
+
+    def __ne__(self, other):
+        self.game_assert()
+        game_cards_hand = Hand(self.game.order) 
+        return game_cards_hand.index(self) != game_cards_hand.index(other)
+
+    def __ge__(self, other):
+        self.game_assert()
+        game_cards_hand = Hand(self.game.order) 
+        return game_cards_hand.index(self) >= game_cards_hand.index(other)
+
+    def __gt__(self, other):
+        self.game_assert()
+        game_cards_hand = Hand(self.game.order) 
+        return game_cards_hand.index(self) > game_cards_hand.index(other)
+
     def __repr__(self):
         return f'{self.suite}{self.value}'
+
+    def game_assert():
+        assert self.game, 'This method requires a card tied to a game.'
 
 class Deck:
     """
@@ -36,11 +73,11 @@ class Deck:
                     for i in ['c', 'd', 'h', 's']
                     # 13 values: 2-10 (zero-indexed) and jack, queen, king, ace
                     # ordered from weakest to strongest
-                    for j in ['2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a', '1']
+                    for j in ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a']
                 ]
     
     def shuffle(self):
-        shuffle(self.cards)
+        rand_shuffle(self.cards)
         print('Deck has been shuffled.')
     
     # generator that can yields each card in the deck
@@ -129,15 +166,34 @@ class Table:
 
 class Presidents:
     """
-    Presidents card game class, contains all game logic.
+    Presidents card game class, contains idk.
     """
+    # president's card deck, with cards ordered from weakest to strongest
+    ordered_deck =\
+        [Card(j, i) 
+            # 4 suites: clubs, diamonds, hearts, spades
+            # ordered from weakest to strongest
+            for i in ['2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a', '1']
+            # 13 values: 2-10 (zero-indexed) and jack, queen, king, ace
+            # ordered from weakest to strongest
+            for j in ['c', 'd', 'h', 's']
+        ]
+
     
+        
+
+
+    @property
+    def order(self):
+        return self.ordered_deck
+
     def play_check():
         return
 
     def play_game():
         while True:
             return
+    
 
 class Hand:
     """
@@ -148,20 +204,28 @@ class Hand:
 
     def __init__(self, cards, valid=False):
         self.cards = cards
+        self.valid = valid
 
     def validate_and_label(self):
         if len(self) == 1:
-            self.type = 'single'
-        elif len(self) == 2:
-            is_double(cards)
             self.valid = True
-            self.type = 'double'
+            self.type = 'single'
+            self.validation_message()
+        elif len(self) == 2:
+            if self.is_double():
+                self.valid = True
+                self.type = 'double'
+            self.validation_message()
         elif len(self) == 3:
-            is_triple(cards)
-            self.type = 'triple'
+            if self.is_triple():
+                self.valid = True
+                self.type = 'triple'
+            self.validation_message()
         elif len(self) == 4:
-            is_quad(cards)
-            self.type = 'quad'
+            if self.is_quad():
+                self.valid = True
+                self.type = 'quad'
+            self.validation_message()
         elif len(self) == 5:
             if True:
                 return
@@ -177,6 +241,10 @@ class Hand:
         # double, the hand is triple
         return self[0:2].is_double() and self[1:3].is_double()
 
+    # how quads are governed is still a hot topic of debate: in our regular play they
+    # were always played with an extra card to make a bomb that beats everything except
+    # higher bombs but how exactly should quads work if we don't really have a sample of 
+    # people even using them because of the exsitence of bombs?    
     def is_quad(self):
         assert len(self) == 4, 'quads consist of exactly 4 cards'
         # if the first three cards form a triple and the last two cards form a
@@ -208,7 +276,11 @@ class Hand:
             return remaining_hand.is_double()
 
     def is_straight(self):
-        return
+        assert len(self) == 5, 'straights consist of exactly 5 cards'
+        # we won't be using any Hand methods to compare cards so let's simply
+        # sort them without turning them into a hand
+        sorted_cards = sorted(self.cards, key=lambda x: x.value)
+
 
     def is_bomb(self):
         assert len(self) == 5, 'bombs consist of exactly 5 cards'
@@ -219,10 +291,12 @@ class Hand:
         return sorted_hand[0:4].is_quad() or sorted_hand[1:5].is_quad()
 
 
-
-            
-        # check each card until a value is repeated, mark this as the fh_double, and
-        # continue checking the rest of the cards
+    
+    def validation_message(self):
+        if self.valid:
+            print(f'This is a valid {self.type} hand.')
+        else:
+            print('This is not a valid hand.')
 
     def __getitem__(self, key):
         cards = self.cards[key]
@@ -237,30 +311,30 @@ class Hand:
     def __add__(self, other):
         return Hand(self.cards + other.cards)
 
+    def __contains__(self, other):
+        for card in self.cards:
+            if card.same_suite(other) and card.same_value(other):
+                return True
+        else:
+            return False
+    
+    def index(self, other):
+        if other in self:
+            for i, card in enumerate(self.cards):
+                if card.same_suite(other) and card.same_value(other):
+                    return i
+        else:
+            raise IndexError('card is not in hand')
+
     def __repr__(self):
         return f'{[card for card in self.cards]}'
-        
-                
-        
-        
-
-        self.cards = cards
+    
 
 
 
     def can_play_on(self, curr_hand):
         if curr_hand is Hand.empty:
             return
-   
-
-    @property
-    def type(self):
-        if len(self.cards) == 1:
-            return 'single'
-        elif len(self.cards) == 2:
-            return 'double'
-        elif len(self.cards) == 3:
-            return 'triple'
 
 
 
@@ -276,4 +350,7 @@ t.add_deck(Deck())
 t.shuffle_deck()
 t.deal_cards()
 
-h = Hand([Card('c', '2'), Card('h', '2'), Card('s', '3'), Card('c', '2'), Card('s', '2')])
+h = Hand([Card('c', '1'), Card('h', '1'), Card('s', '2')])
+p = Presidents()
+c2 = Card('c', '1', p)
+c22 = Card('c', '3', p)

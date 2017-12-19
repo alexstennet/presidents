@@ -8,4 +8,4 @@
 4. Implement machine learning techniques to gain deeper statistical understanding
 5. Create AI that learns presidents and plays against itself many times per day
 6. Allow players to play against different levels of AI
-7. Create mobile apps for presidents; price apps at $1; price analysis tools at $10 (all prices subject to change)
+7. Create mobile apps for presidents; price apps at $0; price analysis tools at $5 (all prices subject to change)
