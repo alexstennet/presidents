@@ -119,7 +119,6 @@ class Player:
         self.spot = spot
         self.table = table
         self.game = game
-        self.hands = []
 
     # adds player to a table if there is an open spot
     # will add functionality for spectating in the future
@@ -142,17 +141,12 @@ class Player:
         self.table = None
         self.game = None
 
-    def view_cards(self):
-        assert self.table, 'Must be at a table to view cards'
-        return self.table.cards[self.spot]
-
     def create_hand(self, *cards):
         # *cards should be a comma separated list of suite_value strings of the
         # cards desired in the hand
         assert self.table, 'Must be at a table to create a hand'
         assert self.game, 'Must be playing a game to create a hand'
-        avail_cards = self.view_cards()
-        suites_values = [card.suite_value for card in avail_cards]
+        suites_values = [card.suite_value for card in self.non_hands]
         hand_indeces = []
         # use suite_value's of each card to check if the player is creating a
         # hand using cards that they actually have
@@ -163,16 +157,29 @@ class Player:
         # intact while popping larger ones
         desired_cards = []
         for i in hand_indeces[::-1]:
-            hand.append(avail_cards.pop(i))
+            hand.append(self.non_hands.pop(i))
         # create a hand using the type of hand that the game provides
-        desired_hand = self.game.hand(desired_hand)
-        self.table.hands[self.spot]
+        desired_hand = self.game.hand(desired_cards)
+        self.hands[self.spot].append(desired_hand)
 
     def play(self, cards):
         assert self.table, 'Must be at a table to play cards.'
         return
 
-    
+    @property
+    def hands(self):
+        assert self.table, 'Must be at a table to view hands'
+        return self.table.hands[self.spot]
+
+    @property
+    def non_hands(self):
+        assert self.table, 'Must be at a table to view non-hands'
+        return self.table.cards[self.spot]
+
+    @property
+    def all(self):
+        assert self.table, 'Must be at a table to view all cards'
+        return self.table.hands[self.spot] + self.table.cards[self.spot]
 
     def __repr__(self):
         return f'player {self.name}'
