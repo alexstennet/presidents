@@ -325,18 +325,6 @@ class Hand:
     # then interpret, and even then, I'm not sure how it would handle comparison
     # rules, e.g. comparing hands of different sizes
     
-    def game_assert(self):
-        assert self.game, 'This method requires a hand tied to a game.'
-        assert other.game, 'This method requires a hand tied to a game.'
-        assert self.game is other.game, 'This method requires both cards to be tied to the same game instance.'
-
-    def __lt__(self, other):
-        self.game_assert()
-        return max([card for card in self.cards]) < max([card for card in other.cards])
-
-    def __gt__(self, other):
-        self.game_assert()
-        return max([card for card in self.cards]) > max([card for card in other.cards])
     
 class PresidentsHand(Hand):
     """
@@ -460,6 +448,19 @@ class PresidentsHand(Hand):
             print(f'{self} is a valid {self.type} hand.')
         else:
             print(f'{self} is not a valid hand.')
+
+    def comparison_assert(self):
+        assert self.game is other.game, 'This method requires both cards to be tied to the same game instance.'
+        assert self.valid and other.valid, 'This method requires both cards to be valid.'
+        assert self.type = self.type, 'This method requires both cards to have the type.'
+
+    def __lt__(self, other):
+        self.comparison_assert()
+        return max([card for card in self.cards]) < max([card for card in other.cards])
+
+    def __gt__(self, other):
+        self.comparison_assert()
+        return max([card for card in self.cards]) > max([card for card in other.cards])
     
 class Presidents:
     """
@@ -519,5 +520,5 @@ h = PresidentsHand([Card('c', 'k', p),
 j = PresidentsHand([Card('c', '9', p0),
                     Card('d', '9', p0)])
 
-k = PresidentsHand([Card('s', '1', p0),
-                    Card('h', '1', p0)])
+k = PresidentsHand([Card('s', '1', p1),
+                    Card('h', '1', p1)])
