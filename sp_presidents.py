@@ -1,6 +1,6 @@
 from helpers import main
 from random import shuffle as rand_shuffle
-from itertools import cycle, combinations
+from itertools import cycle
 
 class Card:
     """
@@ -14,6 +14,7 @@ class Card:
     def __init__(self, suite, value, game=None):
         self.suite = suite
         self.value = value
+        self.suite_value = self.suite + self.value
         self.game = game
 
     def same_suite(self, other):
@@ -21,6 +22,8 @@ class Card:
 
     def same_value(self, other):
         return self.value == other.value
+
+    
 
     def game_assert(self):
         assert self.game, 'This method requires a card tied to a game.'
@@ -64,7 +67,7 @@ class Card:
         return f'{value} of {suite}'
 
     def __str__(self):
-        return f'{self.suite}{self.value}'
+        return self.suite_value
 
 
 class Deck:
@@ -73,7 +76,8 @@ class Deck:
     from a table.
     """
     # a deck is a list of Card objects
-    def __init__(self, cards=[]):
+    def __init__(self, name='Standard', cards=[]):
+        self.name = name
         # if a custom deck of cards is not provided
         if not cards:
             # default deck of cards is modern standard deck of cards
@@ -96,10 +100,13 @@ class Deck:
         rand_shuffle(self.cards)
         print('Deck has been shuffled.')
     
-    # generator that can yields each card in the deck
+    # generator that yields each card in the deck
     def card_dealer(self):
         for card in self.cards:
             yield card
+
+    def __repr__(self):
+        return f'{self.name} Deck'
 
 
 class Player:
@@ -107,49 +114,94 @@ class Player:
     Class for player, can view and play cards at whatever table
     spot they are at.
     """
-    def __init__(self, name, spot=None, table=None):
+    def __init__(self, name, spot=None, table=None, game=None):
         self.name = name
         self.spot = spot
         self.table = table
+        self.game = game
+        self.hands = []
 
     # adds player to a table if there is an open spot
     # will add functionality for spectating in the future
     def join_table(self, table):
         open_spot = table.has_space()
         if open_spot:
-            table.spots[open_spot] = self
             self.table = table
+            self.table.spots[open_spot] = self  
             self.spot = open_spot
+            if self.table.game:
+                self.game = self.table.game
         else:
             print('Table has no open spots.')
 
     def leave_table(self):
-        if not self.table:
-            print('Must be at a table to leave one.')
-        else:
-            self.table.spots[self.spot] = None
-            self.spot = None
-            self.table = None
+        assert self.table, 'Must be at a table to leave one.'
+        # leaves table but keeps the cards in that spot intact
+        self.table.spots[self.spot] = None
+        self.spot = None
+        self.table = None
+        self.game = None
 
     def view_cards(self):
-        print(self.table.spots_cards[self.spot])
+        assert self.table, 'Must be at a table to view cards'
+        return self.table.cards[self.spot]
 
-    def play(self, table, cards):
+    def create_hand(self, *cards):
+        # *cards should be a comma separated list of suite_value strings of the
+        # cards desired in the hand
+        assert self.table, 'Must be at a table to create a hand'
+        assert self.game, 'Must be playing a game to create a hand'
+        avail_cards = self.view_cards()
+        suites_values = [card.suite_value for card in avail_cards]
+        hand_indeces = []
+        # use suite_value's of each card to check if the player is creating a
+        # hand using cards that they actually have
+        for card in cards:
+            assert card in suites_values
+            hand_indeces.append(suites_values.index(card))
+        # step through a reversed version of the indeces so smaller indeces remain
+        # intact while popping larger ones
+        desired_cards = []
+        for i in hand_indeces[::-1]:
+            hand.append(avail_cards.pop(i))
+        # create a hand using the type of hand that the game provides
+        desired_hand = self.game.hand(desired_hand)
+        self.table.hands[self.spot]
+
+    def play(self, cards):
+        assert self.table, 'Must be at a table to play cards.'
         return
 
+    
+
     def __repr__(self):
-        return f'{self.name} boi'
+        return f'player {self.name}'
+
+
+# class PresidentsPlayer(Player):
+#     """
+#     a
+#     """
 
 
 class Table:
     """
-    Where players sit and play cards.
+    Where players sit and play card games.
     """
-    def __init__(self, game=None, deck=None):
+    def __init__(self, name='Flavorless', game=None, deck=None):
+        self.name = name
         self.game = game
-        self.deck = deck
+        # if the game comes with a deck, add the deck to the table
+        if self.game.deck:
+            self.add_deck(self.game.deck)
+        else:
+            self.deck = deck
         self.spots = {1: None, 2:None, 3:None, 4:None}
-        self.spots_cards = {1: [], 2: [], 3: [], 4:[]}
+        # cards key corresponds to spots keys
+        self.cards = {1: [], 2: [], 3: [], 4:[]}
+        # hands key corresponds to spots keys
+        self.hands = {1: [], 2: [], 3: [], 4:[]}
+        self.played = []
         
     def add_game(self, game):
         self.game = game   
@@ -176,36 +228,21 @@ class Table:
         dealer = self.deck.card_dealer()
         for card in dealer:
             next_spot = next(spot_cycler)
-            self.spots_cards[next_spot].append(card)
+            self.cards[next_spot].append(card)
         print('Cards have been dealt.')
 
     def start_game(self):
         self.game.play_game()
 
+    def __repr__(self):
+        return f'{self.name} Table'
 
-class Presidents:
+class PresidentsTable(Table):
     """
-    Presidents card game class, contains idk.
-    """    
-    suite_order = ['c', 'd', 'h', 's']
-    value_order = ['2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a', '1']
-    
+    class for a table that is already set up for presidents
+    """
     def __init__(self):
-        # president's card deck, with cards ordered from weakest to strongest
-        self.ordered_deck =\
-            [Card(j, i, self) 
-                # 4 suites: clubs, diamonds, hearts, spades
-                # ordered from weakest to strongest
-                for i in ['2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a', '1']
-                # 13 values: 2-10 (zero-indexed) and jack, queen, king, ace
-                # ordered from weakest to strongest
-                for j in ['c', 'd', 'h', 's']
-            ]
-
-    @property
-    def order(self):
-        return self.ordered_deck
-    
+        Table.__init__(self, name='Presidents', game=Presidents())
 
 class Hand:
     """
@@ -247,6 +284,9 @@ class Hand:
         else:
             raise IndexError('Card is not in hand.')
 
+    # def __iter__(self):
+    #     return iter(self.cards)
+
     def __repr__(self):
         return f'Hand({[card for card in self.cards]})'
     
@@ -258,37 +298,38 @@ class PresidentsHand(Hand):
     # starting hand that a hand with the 3 of clubs must be played on
     empty = []
 
-    def __init__(self, cards):
+    def __init__(self, cards=[]):
         Hand.__init__(self, cards)
-        # because comparing individual cards differs between card games, create
-        # an instance of Presidents so we can compare cards based on its rules
-        temp_presidents = Presidents()
-        for i, card0 in enumerate(cards[:-1]):
-            for card1 in cards[i+1:]:
+        # check that all the cards in the hand are tied to presidents
+        for card in self:
+            assert isinstance(card.game, Presidents)
+        # non-repeating pairwise comparison of cards in hand
+        for i, card0 in enumerate(self.cards[:-1]):
+            for card1 in self.cards[i+1:]:
                 assert card0 != card1, 'All cards in a presidents hand must be unique.'
         self.valid = False
 
     # validate and label presidents hand
     def validate(self):
-        if len(self) == 1:
+        if self.valid:
+            pass  
+        elif len(self) == 1:
             self.valid = True
             self.type = 'single'
-            self.validation_message()
         elif len(self) == 2:
             if self.is_double():
                 self.valid = True
                 self.type = 'double'
-            self.validation_message()
         elif len(self) == 3:
             if self.is_triple():
                 self.valid = True
                 self.type = 'triple'
-            self.validation_message()
         elif len(self) == 4:
-            if self.is_quad():
-                self.valid = True
-                self.type = 'quad'
-            self.validation_message()
+            # whether or not we implement quads is still up for debate
+            # if self.is_quad():
+            #     self.valid = True
+            #     self.type = 'quad'
+            pass
         elif len(self) == 5:
             if self.is_bomb():
                 self.valid = True
@@ -299,7 +340,7 @@ class PresidentsHand(Hand):
             elif self.is_straight():
                 self.valid = True
                 self.type = 'straight'
-            self.validation_message()
+        self.validation_message()
 
     def is_double(self):
         assert len(self) == 2, 'Doubles consist of exactly 2 cards.'
@@ -375,6 +416,32 @@ class PresidentsHand(Hand):
             print(f'{self} is a valid {self.type} hand.')
         else:
             print(f'{self} is not a valid hand.')
+    
+class Presidents:
+    """
+    Presidents card game class, contains idk.
+    """    
+    suite_order = ['c', 'd', 'h', 's']
+    value_order = ['2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a', '1']
+    hand = PresidentsHand
+
+    def __init__(self):
+        # president's card deck, with cards ordered from weakest to strongest
+        self.deck = Deck('Presidents',
+            [Card(j, i, self) 
+                # 4 suites: clubs, diamonds, hearts, spades
+                # ordered from weakest to strongest
+                for i in ['2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a', '1']
+                # 13 values: 2-10 (zero-indexed) and jack, queen, king, ace
+                # ordered from weakest to strongest
+                for j in ['c', 'd', 'h', 's']])
+
+    @property
+    def order(self):
+        return self.deck.cards
+    
+    def __repr__(self):
+        return 'Presidents Game Instance'
 
 
 
@@ -386,22 +453,20 @@ class PresidentsHand(Hand):
 
 
 
-t = Table()
+
+t = PresidentsTable()
 a = Player('a')
 b = Player('b')
 c = Player('c')
 d = Player('d')
 for i in [a, b, c, d]:
     i.join_table(t)
-t.add_deck(Deck())
 t.shuffle_deck()
 t.deal_cards()
+
 p = Presidents()
 h = PresidentsHand([Card('c', 'k', p),
                     Card('d', '9', p),
                     Card('h', '8', p),
                     Card('s', '4', p),
                     Card('c', '5', p)])
-
-c2 = Card('c', '3', p)
-c22 = Card('c', '3', p)
