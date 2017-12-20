@@ -23,13 +23,13 @@ class Card:
     def same_value(self, other):
         return self.value == other.value
 
-    
-
-    def game_assert(self):
+    def game_assert(self, other):
         assert self.game, 'This method requires a card tied to a game.'
+        assert other.game, 'This method requires a card tied to a game.'
+        assert self.game is other.game, 'This method requires both cards to be tied to the same game instance.'
 
     def __lt__(self, other):
-        self.game_assert()
+        self.game_assert(other)
         # convert the game's order to a (invalid) Hand so we can check if
         # the card is in the list of game cards; this method follows for
         # the rest of the comparisons 
@@ -37,27 +37,27 @@ class Card:
         return game_cards_hand.index(self) < game_cards_hand.index(other)
 
     def __le__(self, other):
-        self.game_assert()
+        self.game_assert(other)
         game_cards_hand = Hand(self.game.order) 
         return game_cards_hand.index(self) <= game_cards_hand.index(other)
 
     def __eq__(self, other):
-        self.game_assert()
+        self.game_assert(other)
         game_cards_hand = Hand(self.game.order) 
         return game_cards_hand.index(self) == game_cards_hand.index(other)
 
     def __ne__(self, other):
-        self.game_assert()
+        self.game_assert(other)
         game_cards_hand = Hand(self.game.order) 
         return game_cards_hand.index(self) != game_cards_hand.index(other)
 
     def __ge__(self, other):
-        self.game_assert()
+        self.game_assert(other)
         game_cards_hand = Hand(self.game.order) 
         return game_cards_hand.index(self) >= game_cards_hand.index(other)
 
     def __gt__(self, other):
-        self.game_assert()
+        self.game_assert(other)
         game_cards_hand = Hand(self.game.order) 
         return game_cards_hand.index(self) > game_cards_hand.index(other)
 
@@ -273,9 +273,18 @@ class Hand:
     """
     # a hand is a list of Card objects
     def __init__(self, cards=[]):
+        
         for card in cards:
-            assert isinstance(card, Card), 'all cards in a hand must be Card objects'
+            assert isinstance(card, Card), 'All cards in a hand must be Card objects.'
+        if cards:
+            game = cards[0].game
+            for card in cards:
+                assert card.game is game, 'All cards must be part of the same game instance.'
+            self.game = game
+        else:
+            self.game = None
         self.cards = cards
+
 
     # allows indexing and slicing into Hands
     def __getitem__(self, key):
@@ -307,12 +316,27 @@ class Hand:
         else:
             raise IndexError('Card is not in hand.')
 
-    # def __iter__(self):
-    #     return iter(self.cards)
-
     def __repr__(self):
         return f'Hand({[card for card in self.cards]})'
+
+    # children of the Hand class must provide their own hand comparison criteria;
+    # the alternative to this was requiring children of the hand class to explicitly
+    # enumerate all card combinations/permutations in order for the Hand class to 
+    # then interpret, and even then, I'm not sure how it would handle comparison
+    # rules, e.g. comparing hands of different sizes
     
+    def game_assert(self):
+        assert self.game, 'This method requires a hand tied to a game.'
+        assert other.game, 'This method requires a hand tied to a game.'
+        assert self.game is other.game, 'This method requires both cards to be tied to the same game instance.'
+
+    def __lt__(self, other):
+        self.game_assert()
+        return max([card for card in self.cards]) < max([card for card in other.cards])
+
+    def __gt__(self, other):
+        self.game_assert()
+        return max([card for card in self.cards]) > max([card for card in other.cards])
     
 class PresidentsHand(Hand):
     """
@@ -323,9 +347,6 @@ class PresidentsHand(Hand):
 
     def __init__(self, cards=[]):
         Hand.__init__(self, cards)
-        # check that all the cards in the hand are tied to presidents
-        for card in self:
-            assert isinstance(card.game, Presidents)
         # non-repeating pairwise comparison of cards in hand
         for i, card0 in enumerate(self.cards[:-1]):
             for card1 in self.cards[i+1:]:
@@ -486,10 +507,17 @@ for i in [a, b, c, d]:
     i.join_table(t)
 t.shuffle_deck()
 t.deal_cards()
-
 p = Presidents()
+p0 = Presidents()
+p1 = Presidents()
 h = PresidentsHand([Card('c', 'k', p),
                     Card('d', '9', p),
                     Card('h', '8', p),
                     Card('s', '4', p),
                     Card('c', '5', p)])
+
+j = PresidentsHand([Card('c', '9', p0),
+                    Card('d', '9', p0)])
+
+k = PresidentsHand([Card('s', '1', p0),
+                    Card('h', '1', p0)])
