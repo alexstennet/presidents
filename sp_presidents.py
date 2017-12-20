@@ -151,20 +151,42 @@ class Player:
         # use suite_value's of each card to check if the player is creating a
         # hand using cards that they actually have
         for card in cards:
-            assert card in suites_values
+            assert card in suites_values, 'Card must be in your non-hands'
             hand_indeces.append(suites_values.index(card))
-        # step through a reversed version of the indeces so smaller indeces remain
-        # intact while popping larger ones
+        # step through a reversed sorted version of the indeces so smaller
+        # indeces remain intact while popping larger ones
         desired_cards = []
-        for i in hand_indeces[::-1]:
-            hand.append(self.non_hands.pop(i))
+        for i in sorted(hand_indeces, reverse=True):
+            desired_cards.append(self.non_hands.pop(i))
         # create a hand using the type of hand that the game provides
         desired_hand = self.game.hand(desired_cards)
-        self.hands[self.spot].append(desired_hand)
+        self.hands.append(desired_hand)
 
-    def play(self, cards):
+    def play_hand(self, hand_ind):
         assert self.table, 'Must be at a table to play cards.'
+        assert len(self.hands) > hand_ind, 'There is not as many hands as you think.'
+        if not self.hands[hand_ind].valid:
+            self.hands[hand_ind].validate()
+        
+
+    def remove_from_hand(self, hand_ind, additional):
         return
+
+    def add_to_hand(self, hand_ind, additional):
+        return
+
+    def unhand_hand(self, hand_ind):
+        popped_hand = self.hands.pop(hand_ind)
+        while popped_hand.cards:
+            self.non_hands.append(popped_hand.cards.pop())
+     
+    def unhand_all_hands(self):
+        for i in reversed(range(len(self.hands))):
+            self.unhand_hand(i)
+
+    def validate_hands(self):
+        for hand in self.hands:
+            hand.validate()
 
     @property
     def hands(self):
@@ -183,12 +205,6 @@ class Player:
 
     def __repr__(self):
         return f'player {self.name}'
-
-
-# class PresidentsPlayer(Player):
-#     """
-#     a
-#     """
 
 
 class Table:
