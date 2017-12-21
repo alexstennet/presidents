@@ -219,8 +219,22 @@ class PresidentsPlayer(Player):
         # to play any hand
         elif isinstance(top_of_played, PresidentsPass):
             before_top = self.table.played[-2]
+            # if the top card is a Pass, check if the previous one was also a pass
             if isinstance(before_top, PresidentsPass):
-                return
+                before_before_top = self.table.played[-3]
+                # the card before the top card is a pass, check if the card before that
+                # was also a pass
+                if isinstance(before_before_top, PresidentsPass):
+                    # if there are 3 passes in a row, the current player is allowed to play
+                    # any hand that they want
+                    self.hands.pop(hand_ind)
+                    self.table.played.append(hand_to_play)
+                # if there are only 2 passes in a row, then the current player must beat the
+                # card below the 2 passes
+                else:
+                    
+
+                
 
 
 
