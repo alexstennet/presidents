@@ -205,13 +205,17 @@ class PresidentsPlayer(Player):
         {   
             'hand': (self.create_hand, "use shorthand versions of card names separated by spaces to create a hand, e.g. `hand s2 h2 d2 c2 sa'"),
             'view': (self.view, "look at both your hands and individual cards with 'view all' and look at them seperately with 'view hands' and 'view cards', respectively"),
-            'help': (self.help, 'list the command options and short descriptions of each')
+            'help': (self.help, 'list the command options and short descriptions of each'),
+            'play': (self.play_hand, 'FIX play the hand at the hand index provided FIX'),
+            'pass': (self.pass_turn, 'FIX FIX')
         }
         self.done = False
 
     def play_hand(self, hand_ind):
         assert self.game, 'Must be playing a game to play a hand.'
         assert self.table, 'Must be at a table to play cards.'
+        if not isinstance(hand_ind, int):
+            hand_ind = int(hand_ind)
         assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         hand_to_play = self.hands[hand_ind]
         # if the hand wanting to played is not valid, attempt to validate it
@@ -229,6 +233,7 @@ class PresidentsPlayer(Player):
         # the card before the passes
         # if there are 3 passes, all players have passed and the current player is allowed
         # to play any hand
+        # CREATE A PASS COUNTER BECAUSE THIS IS DISGUSTING
         elif isinstance(top_of_played, PresidentsPass):
             before_top = self.table.played[-2]
             # if the top card is a Pass, check if the previous one was also a pass
@@ -262,21 +267,38 @@ class PresidentsPlayer(Player):
         self.table.played.append(hand_to_play)
         # if current player has no more hands or cards remaining, display his/her position
         # for next round and decrement the number of players remaining
-        if self.current_player.all == []:
-            self.current_player.done = True
+        self.announce_pos_if_done()
+        self.next_player()
+    
+    def announce_pos_if_done(self):
+        if self.all == []:
+            self.done = True
             self.game.announce_position()
             self.game.players_left -= 1
+    
+    def next_player(self):
         # only used the magic method here so the method chaining would make sense
+        self.game.current_player = self.game.next_player_gen.__next__()
         while self.game.current_player.done:
             self.game.current_player = self.game.next_player_gen.__next__()
-        
+        self.game.report_turn()
+
+    def pass_turn(self):
+        assert self.game, 'Must be playing a game to play a hand.'
+        assert self.table, 'Must be at a table to play cards.'
+        assert not isinstance(self.last_played, PresidentsStart), 'Cannot pass when you have the 3 of Clubs!'
+        self.table.played.append(PresidentsPass())
+        self.next_player()
+    
     def view(self, which):
         if which == 'all':
             print(f'Hands: {self.hands}\nCards: {sorted(self.cards)}')
         elif which == 'hands':
-            print(sorted(self.hands))
+            print(self.hands)
         elif which == 'cards':
             print(sorted(self.cards))
+        elif which == 'last':
+            print(self.table.played[-1])
 
     def help(self):
         for shortcut, info in self.func_dict.items():
@@ -657,7 +679,6 @@ class Presidents:
     def game_loop(self):
         while True:
             try:
-                hands_played = len(self.played)
                 pres_in = input('pres> ')
                 pres_in_tokens = pres_in.split()
                 # all shortcuts will be methods of the Player class or one of its subclasses
@@ -666,25 +687,22 @@ class Presidents:
                 func = self.current_player.func_lookup(shortcut)
                 if not func:
                     print(f'{shortcut} is not a valid command. Enter help to see your options!')
-                    break
+                    continue
                 if args:
                     func(*args)
                 else:
                     func()
                 if self.players_left == 1:
                     self.announce_position()
-                # if the function added a hand (or a pass) to the deck, tell the next player
-                # that its their turn
-                if hands_played < len(self.played) and self.players_left > 1:
-                    self.report_turn()                                
+                    break
             except KeyboardInterrupt:
                 print('\n\nKeyboardInterrupt')
                 return
             except EOFError:
                 print()
                 return
-            except Exception as err:
-                print(f"The following error might not make sense, but you might be able to use it to tell what's wrong!\n{err}")
+            # except Exception as err:
+            #     print(f"The following error might not make sense, but you might be able to use it to tell what's wrong!\n{err}")
 
     def announce_position(self):
         if self.players_left == 4:
