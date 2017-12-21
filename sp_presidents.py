@@ -173,6 +173,11 @@ class Player:
             hand.validate()
 
     @property
+    def last_played(self):
+        assert self.table, 'Must be at a table to view hands'
+        return self.table.played[-1]
+
+    @property
     def hands(self):
         assert self.table, 'Must be at a table to view hands'
         return self.table.hands[self.spot]
@@ -210,8 +215,7 @@ class PresidentsPlayer(Player):
             assert Card('c','2') in hand_to_play, 'The starting hand must contain the 3 of Clubs.'
             # if the hand includes the 3 of clubs, remove the hand from the player's hands
             # and append it to the list of played cards
-            self.hands.pop(hand_ind)
-            self.table.played.append(hand_to_play)
+            self.force_play_hand(hand_ind, hand_to_play)
         # handle multiple numbers of passes
         # if there are 1 or 2 passes at the top of the played cards, the player must beat
         # the card before the passes
@@ -227,13 +231,27 @@ class PresidentsPlayer(Player):
                 if isinstance(before_before_top, PresidentsPass):
                     # if there are 3 passes in a row, the current player is allowed to play
                     # any hand that they want
-                    self.hands.pop(hand_ind)
-                    self.table.played.append(hand_to_play)
+                    self.force_play_hand(hand_ind, hand_to_play)
                 # if there are only 2 passes in a row, then the current player must beat the
                 # card below the 2 passes
                 else:
-                    
+                    assert hand_to_play > before_before_top, 'This hand cannot beat the last!'
+                    self.force_play_hand(hand_ind, hand_to_play)
+            # if there is only one pass, then the current player must beat the card below
+            # the pass
+            else:
+                assert hand_to_play > before_top, 'This hand cannot beat the last!'
+                self.force_play_hand(hand_ind, hand_to_play)
+        # if the last card played is neither a Start or a Pass, simply try to beat it
+        else:
+            assert hand_to_play > top_of_played, 'This hand cannot beat the last!'
+            self.force_play_hand(hand_ind, hand_to_play)
 
+    def force_play_hand(self, hand_ind, hand_to_play=None):
+        if not hand_to_play:
+            hand_to_play = self.hands[hand_ind]
+        self.hands.pop(hand_ind)
+        self.table.played.append(hand_to_play)
                 
 
 
@@ -590,6 +608,8 @@ class PresidentsPass:
     """
     def __repr__(self):
         return 'Pass'
+
+
 
 
 
