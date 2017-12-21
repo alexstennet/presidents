@@ -200,6 +200,13 @@ class PresidentsPlayer(Player):
     """
     class for presidents players
     """
+    func_dict = 
+        {   
+            'hand': (self.create_hand, 'use shorthand versions of card names separated by spaces to create a hand, e.g. hand s2 h2 d2 c2 sa'),
+            'view': (self.view, 'look at both your hands and individual cards with view all and look at them seperately with view hands and view cards, respectively'),
+            'help': (self.help, 'list the command options and short descriptions of each')
+
+        }
 
     def play_hand(self, hand_ind):
         assert self.game, 'Must be playing a game to play a hand.'
@@ -252,9 +259,28 @@ class PresidentsPlayer(Player):
             hand_to_play = self.hands[hand_ind]
         self.hands.pop(hand_ind)
         self.table.played.append(hand_to_play)
-                
+        # only used the magic method here so the method chaining would make sense
+        self.game.current_player = self.game.next_player_gen.__next__()
+        
+    def view(self, which):
+        if which == 'all':
+            return Player.all(self)
+        elif which == 'hands':
+            return Player.hands(self)
+        elif which == 'cards':
+            return Player.hands(self)
+    
+    def help(self):
+        for shortcut, info in self.func_dict.items():
+            print(f'{shortcut}: {info[1]}')
 
 
+
+    def func_lookup(self, shortcut):
+        # returns None if the function is not in the player function dictionary
+        return self.func_dict.get(shortcut)
+
+        
 
 class Table:
     """
@@ -321,8 +347,18 @@ class Table:
             self.cards[next_spot].append(card)
         print('Cards have been dealt.')
 
+    # generator that yields the next player
+    def next_player_gen(self):
+        player_cycler = cycle(self.players)
+        for player in player_cycler:
+            yield player
+
     def start_game(self):
         self.game.play_game()
+
+    @property
+    def players(self):
+        return self.spots.values()
 
     def __repr__(self):
         return f'{self.name} Table'
@@ -559,6 +595,7 @@ class Presidents:
         # might add ability to start a game with table included
         self.table = None
         self.current_player = None
+        self.finished = False
 
     @property
     def order(self):
@@ -570,7 +607,12 @@ class Presidents:
         print('\nWelcome to Presidents!')
         self.setup_table()
         self.find_3_of_clubs()
+        self.next_player_gen = self.table.next_player_gen()
+        while next(self.next_player_gen) != self.current_player:
+            next(self.next_player_gen)
         self.report_turn()
+        self.game_loop()
+
 
     def find_3_of_clubs(self):
         assert isinstance(self.table.played[-1], PresidentsStart), 'Can only find the 3 of clubs at the beginning of the game.'
@@ -580,7 +622,7 @@ class Presidents:
         print(f'{self.current_player.name} has the 3 of Clubs!')
         
     def report_turn(self):
-        print(f"It's your turn, {self.current_player}!")
+        print(f"It's your turn, {self.current_player}! Enter help to see your options!")
 
     def setup_table(self):
         self.table.shuffle_deck()
@@ -588,7 +630,38 @@ class Presidents:
         self.table.played.append(PresidentsStart())
 
     def game_loop(self):
-        return
+        while self.finished = False:
+            try:
+                hands_played = len(self.played)
+                pres_in = input('pres> ')
+                pres_in_tokens = pres_in.split()
+                # all shortcuts will be methods of the Player class or one of its subclasses
+                shortcut = pres_in_tokens[0]
+                args = pres_in_tokens[1:]
+                func = self.current_player.func_lookup(shortcut)
+                if not func:
+                    print(f'{shortcut} is not a valid command. Enter help to see your options!')
+                    break
+                if args:
+                    func(*args)
+                else:
+                    func()
+                # if the function added a hand (or a pass) to the deck, tell the next player
+                # that its their turn
+                if hands_played < len(self.played):
+                    self.report_turn()                    
+            except AssertionError as err:
+                print(err)            
+            except KeyboardInterrupt:
+                print('\n\nKeyboardInterrupt')
+                return
+            except EOFError:
+                print()
+                return
+
+    @property
+    def played(self):
+        return self.table.played
 
     def __repr__(self):
         return 'Presidents Game Instance'
