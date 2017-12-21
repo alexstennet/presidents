@@ -217,9 +217,10 @@ class PresidentsPlayer(Player):
         # the card before the passes
         # if there are 3 passes, all players have passed and the current player is allowed
         # to play any hand
-
         elif isinstance(top_of_played, PresidentsPass):
-            return
+            before_top = self.table.played[-2]
+            if isinstance(before_top, PresidentsPass):
+                
 
 
 
@@ -513,7 +514,6 @@ class Presidents:
     value_order = ['2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a', '1']
     hand = PresidentsHand
     
-
     def __init__(self):
         # president's card deck, with cards ordered from weakest to strongest
         self.deck = Deck('Presidents',
@@ -547,32 +547,20 @@ class Presidents:
                 self.current_player = player
         print(f'{self.current_player.name} has the 3 of Clubs!')
         
-
-
-
     def report_turn(self):
         print(f"It's your turn, {self.current_player}!")
 
-    def game_loop(self):
-        return
-
-    
-
-    def __repr__(self):
-        return 'Presidents Game Instance'
-
-    # setup table for a game of pres, put start in the played list, shuffle and distribute
-    # cards, etc.a
     def setup_table(self):
         self.table.shuffle_deck()
         self.table.deal_cards()
         self.table.played.append(PresidentsStart())
-        
 
+    def game_loop(self):
+        return
 
-    # manage turns
+    def __repr__(self):
+        return 'Presidents Game Instance'
 
-    #
 
 class PresidentsStart:
     """
@@ -580,6 +568,7 @@ class PresidentsStart:
     """
     def __repr__(self):
         return 'Start'
+
 
 class PresidentsPass:
     """
