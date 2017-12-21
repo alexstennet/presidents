@@ -220,7 +220,7 @@ class PresidentsPlayer(Player):
         elif isinstance(top_of_played, PresidentsPass):
             before_top = self.table.played[-2]
             if isinstance(before_top, PresidentsPass):
-                
+                return
 
 
 
