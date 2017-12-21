@@ -70,6 +70,8 @@ class Card:
         return self.suite_value
 
 
+
+
 class Deck:
     """
     Class for deck of cards, can be put on a table or removed
@@ -116,6 +118,8 @@ class Player:
     """
     def __init__(self, name, spot=None, table=None, game=None):
         self.name = name
+        # for now, you can't automatically 'spawn' players onto a table and must
+        # manually add them to a table, but will add in the future
         self.spot = spot
         self.table = table
         self.game = game
@@ -123,23 +127,10 @@ class Player:
     # adds player to a table if there is an open spot
     # will add functionality for spectating in the future
     def join_table(self, table):
-        open_spot = table.has_space()
-        if open_spot:
-            self.table = table
-            self.table.spots[open_spot] = self  
-            self.spot = open_spot
-            if self.table.game:
-                self.game = self.table.game
-        else:
-            print('Table has no open spots.')
+        table.add_player(self)
 
-    def leave_table(self):
-        assert self.table, 'Must be at a table to leave one.'
-        # leaves table but keeps the cards in that spot intact
-        self.table.spots[self.spot] = None
-        self.spot = None
-        self.table = None
-        self.game = None
+    def leave_table(self, table):
+        table.remove_player(self)
 
     def create_hand(self, *cards):
         # *cards should be a comma separated list of suite_value strings of the
@@ -161,18 +152,11 @@ class Player:
         # create a hand using the type of hand that the game provides
         desired_hand = self.game.hand(desired_cards)
         self.hands.append(desired_hand)
-
-    def play_hand(self, hand_ind):
-        assert self.table, 'Must be at a table to play cards.'
-        assert len(self.hands) > hand_ind, 'There is not as many hands as you think.'
-        if not self.hands[hand_ind].valid:
-            self.hands[hand_ind].validate()
         
-
-    def remove_from_hand(self, hand_ind, additional):
+    def remove_from_hand(self, hand_ind, to_remove):
         return
 
-    def add_to_hand(self, hand_ind, additional):
+    def add_to_hand(self, hand_ind, to_add):
         return
 
     def unhand_hand(self, hand_ind):
@@ -207,6 +191,25 @@ class Player:
         return f'player {self.name}'
 
 
+class PresidentsPlayer(Player):
+    """
+    class for presidents players
+    """
+
+    def play_hand(self, hand_ind):
+        assert self.game, 'Must be playing a game to play a hand.'
+        assert self.table, 'Must be at a table to play cards.'
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
+        hand_to_play = self.hands[hand_ind]
+        # if the hand wanting to played is not valid, attempt to validate it
+        if not hand_to_play.valid:
+            hand_to_play.validate()            
+            assert hand_to_play.valid, 'Can only play valid hands'
+        top_of_played = self.table.played[-1]
+        if top_of_played == 
+
+
+
 class Table:
     """
     Where players sit and play card games.
@@ -231,6 +234,25 @@ class Table:
 
     def add_deck(self, deck):
         self.deck = deck
+    
+    def add_player(self, player):
+        open_spot = self.has_space()
+        if open_spot:
+            player.table = self
+            self.spots[open_spot] = player
+            player.spot = open_spot
+            if self.game:
+                player.game = self.game
+        else:
+            print('Table has not open spots.')
+
+    def remove_player(self, player):
+        assert player.table is self, 'Player must be at a table to leave it.'
+        # player can leave the table while keeping the cards in that spot intact
+        self.spots[player.spot] = None
+        player.spot = None
+        player.table = None
+        player.game = None
 
     # returns spot number of an open spot in the table
     # else returns False is there are no open spots
@@ -260,12 +282,18 @@ class Table:
     def __repr__(self):
         return f'{self.name} Table'
 
+
 class PresidentsTable(Table):
     """
     class for a table that is already set up for presidents
     """
     def __init__(self):
         Table.__init__(self, name='Presidents', game=Presidents())
+
+    def add_player(self, player):
+        assert isinstance(player, PresidentsPlayer), 'Only PresidentsPlayers can sit at PresidentsTables.'
+        Table.add_player(self, player)
+
 
 class Hand:
     """
@@ -330,8 +358,7 @@ class PresidentsHand(Hand):
     """
     class for presidents hands
     """
-    # starting hand that a hand with the 3 of clubs must be played on
-    empty = []
+    
 
     def __init__(self, cards=[]):
         Hand.__init__(self, cards)
@@ -449,26 +476,29 @@ class PresidentsHand(Hand):
         else:
             print(f'{self} is not a valid hand.')
 
-    def comparison_assert(self):
-        assert self.game is other.game, 'This method requires both cards to be tied to the same game instance.'
-        assert self.valid and other.valid, 'This method requires both cards to be valid.'
-        assert self.type = self.type, 'This method requires both cards to have the type.'
+    def comparison_assert(self, other):
+        assert self.game is other.game, 'This method requires both hands to be tied to the same game instance.'
+        assert self.valid and other.valid, 'This method requires both hands to be valid.'
+        assert self.type == self.type, 'This method requires both hands to have the type.'
 
     def __lt__(self, other):
-        self.comparison_assert()
+        self.comparison_assert(other)
         return max([card for card in self.cards]) < max([card for card in other.cards])
 
     def __gt__(self, other):
-        self.comparison_assert()
+        self.comparison_assert(other)
         return max([card for card in self.cards]) > max([card for card in other.cards])
     
 class Presidents:
     """
     Presidents card game class, contains idk.
-    """    
+    """
+    # suite and value order from weakest to strongest
     suite_order = ['c', 'd', 'h', 's']
+    # values are zero-indexed, e.g. 1 is a 2, 2 is a 3, etc.
     value_order = ['2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a', '1']
     hand = PresidentsHand
+    
 
     def __init__(self):
         # president's card deck, with cards ordered from weakest to strongest
@@ -484,11 +514,34 @@ class Presidents:
     @property
     def order(self):
         return self.deck.cards
-    
+
+    def play_game(self):
+        print('Welcome to Presidents!')
+
     def __repr__(self):
         return 'Presidents Game Instance'
 
+    # setup table for a game of pres, put start in the played list, shuffle and distribute
+    # cards, etc.a
+    
 
+    # manage turns
+
+    #
+
+class PresidentsStart:
+    """
+    Class for object that every presidents game starts with.
+    """
+    def __repr__(self):
+        return 'Start'
+
+class PresidentsPass:
+    """
+    Class for object that represents a passed turn in presidents.
+    """
+    def __repr__(self):
+        return 'Pass'
 
 
 
@@ -500,14 +553,15 @@ class Presidents:
 
 
 t = PresidentsTable()
-a = Player('a')
-b = Player('b')
-c = Player('c')
-d = Player('d')
+a = PresidentsPlayer('a')
+b = PresidentsPlayer('b')
+c = PresidentsPlayer('c')
+d = PresidentsPlayer('d')
 for i in [a, b, c, d]:
     i.join_table(t)
 t.shuffle_deck()
 t.deal_cards()
+
 p = Presidents()
 p0 = Presidents()
 p1 = Presidents()
@@ -520,5 +574,5 @@ h = PresidentsHand([Card('c', 'k', p),
 j = PresidentsHand([Card('c', '9', p0),
                     Card('d', '9', p0)])
 
-k = PresidentsHand([Card('s', '1', p1),
-                    Card('h', '1', p1)])
+k = PresidentsHand([Card('s', '1', p0),
+                    Card('h', '1', p0)])
