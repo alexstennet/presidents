@@ -7,9 +7,11 @@ class Card:
     class for cards and card comparisons
     """
     suite_dict = {'c': 'Clubs', 'd': 'Diamonds', 'h': 'Hearts', 's': 'Spades'}
-    value_dict = {'1': 'Two', '2': 'Three', '3': 'Four', '4': 'Five', '5': 'Six',
-                   '6': 'Seven', '7': 'Eight', '8': 'Nine', '9': 'Ten', 'j': 'Jack',
-                   'q': 'Queen', 'k': 'King', 'a': 'Ace'}
+    # value_dict = {'1': 'Two', '2': 'Three', '3': 'Four', '4': 'Five', '5': 'Six',
+    #                '6': 'Seven', '7': 'Eight', '8': 'Nine', '9': 'Ten', 'j': 'Jack',
+    #                'q': 'Queen', 'k': 'King', 'a': 'Ace'}
+    value_dict = {'1': 2, '2': 3, '3': 4, '4': 5, '5': 6, '6': 7, '7': 8, '8': 9,
+                  '9': 10, 'j': 'Jack', 'q': 'Queen', 'k': 'King', 'a': 'Ace'}
 
     def __init__(self, suite, value, game=None):
         self.suite = suite
@@ -70,8 +72,6 @@ class Card:
         return self.suite_value
 
 
-
-
 class Deck:
     """
     Class for deck of cards, can be put on a table or removed
@@ -116,13 +116,13 @@ class Player:
     Class for player, can view and play cards at whatever table
     spot they are at.
     """
-    def __init__(self, name, spot=None, table=None, game=None):
+    def __init__(self, name): #, spot=None, table=None, game=None):
         self.name = name
         # for now, you can't automatically 'spawn' players onto a table and must
         # manually add them to a table, but will add in the future
-        self.spot = spot
-        self.table = table
-        self.game = game
+        self.spot = None
+        self.table = None
+        self.game = None
 
     # adds player to a table if there is an open spot
     # will add functionality for spectating in the future
@@ -188,7 +188,7 @@ class Player:
         return self.table.hands[self.spot] + self.table.cards[self.spot]
 
     def __repr__(self):
-        return f'player {self.name}'
+        return f'{self.name}'
 
 
 class PresidentsPlayer(Player):
@@ -206,7 +206,20 @@ class PresidentsPlayer(Player):
             hand_to_play.validate()            
             assert hand_to_play.valid, 'Can only play valid hands'
         top_of_played = self.table.played[-1]
-        if top_of_played == 
+        if isinstance(top_of_played, PresidentsStart):
+            assert Card('c','2') in hand_to_play, 'The starting hand must contain the 3 of Clubs.'
+            # if the hand includes the 3 of clubs, remove the hand from the player's hands
+            # and append it to the list of played cards
+            self.hands.pop(hand_ind)
+            self.table.played.append(hand_to_play)
+        # handle multiple numbers of passes
+        # if there are 1 or 2 passes at the top of the played cards, the player must beat
+        # the card before the passes
+        # if there are 3 passes, all players have passed and the current player is allowed
+        # to play any hand
+
+        elif isinstance(top_of_played, PresidentsPass):
+            return
 
 
 
@@ -214,14 +227,11 @@ class Table:
     """
     Where players sit and play card games.
     """
-    def __init__(self, name='Flavorless', game=None, deck=None):
+    def __init__(self, name='Flavorless'): #, game=None, deck=None):
         self.name = name
-        self.game = game
-        # if the game comes with a deck, add the deck to the table
-        if self.game.deck:
-            self.add_deck(self.game.deck)
-        else:
-            self.deck = deck
+        # similarly to players, can't make table which comes with a game and 
+        # deck attached and must manually add them; might add later
+        self.game = None
         self.spots = {1: None, 2:None, 3:None, 4:None}
         # cards key corresponds to spots keys
         self.cards = {1: [], 2: [], 3: [], 4:[]}
@@ -230,11 +240,13 @@ class Table:
         self.played = []
         
     def add_game(self, game):
-        self.game = game   
-
-    def add_deck(self, deck):
-        self.deck = deck
+        self.game = game
+        self.game.table = self
     
+    @property
+    def deck(self):
+        return self.game.deck
+
     def add_player(self, player):
         open_spot = self.has_space()
         if open_spot:
@@ -287,8 +299,9 @@ class PresidentsTable(Table):
     """
     class for a table that is already set up for presidents
     """
-    def __init__(self):
-        Table.__init__(self, name='Presidents', game=Presidents())
+    def __init__(self, name='Presidents'):
+        Table.__init__(self, name)
+        self.add_game(Presidents())
 
     def add_player(self, player):
         assert isinstance(player, PresidentsPlayer), 'Only PresidentsPlayers can sit at PresidentsTables.'
@@ -358,8 +371,6 @@ class PresidentsHand(Hand):
     """
     class for presidents hands
     """
-    
-
     def __init__(self, cards=[]):
         Hand.__init__(self, cards)
         # non-repeating pairwise comparison of cards in hand
@@ -488,6 +499,9 @@ class PresidentsHand(Hand):
     def __gt__(self, other):
         self.comparison_assert(other)
         return max([card for card in self.cards]) > max([card for card in other.cards])
+
+    def __repr__(self):
+        return f'PresidentsHand({[card for card in self.cards]})'
     
 class Presidents:
     """
@@ -510,20 +524,51 @@ class Presidents:
                 # 13 values: 2-10 (zero-indexed) and jack, queen, king, ace
                 # ordered from weakest to strongest
                 for j in ['c', 'd', 'h', 's']])
+        # might add ability to start a game with table included
+        self.table = None
+        self.current_player = None
 
     @property
     def order(self):
         return self.deck.cards
 
     def play_game(self):
-        print('Welcome to Presidents!')
+        assert self.table.played == [], 'Cannot start a game if cards have already been played.'
+        assert all(self.table.spots.values()), 'Playing Presidents requires exactly 4 players.'
+        print('\nWelcome to Presidents!')
+        self.setup_table()
+        self.find_3_of_clubs()
+        self.report_turn()
+
+    def find_3_of_clubs(self):
+        assert isinstance(self.table.played[-1], PresidentsStart), 'Can only find the 3 of clubs at the beginning of the game.'
+        for spot, player in self.table.spots.items():
+            if Card('c', '2', self) in self.table.cards[spot]:
+                self.current_player = player
+        print(f'{self.current_player.name} has the 3 of Clubs!')
+        
+
+
+
+    def report_turn(self):
+        print(f"It's your turn, {self.current_player}!")
+
+    def game_loop(self):
+        return
+
+    
 
     def __repr__(self):
         return 'Presidents Game Instance'
 
     # setup table for a game of pres, put start in the played list, shuffle and distribute
     # cards, etc.a
-    
+    def setup_table(self):
+        self.table.shuffle_deck()
+        self.table.deal_cards()
+        self.table.played.append(PresidentsStart())
+        
+
 
     # manage turns
 
@@ -553,14 +598,13 @@ class PresidentsPass:
 
 
 t = PresidentsTable()
-a = PresidentsPlayer('a')
-b = PresidentsPlayer('b')
-c = PresidentsPlayer('c')
-d = PresidentsPlayer('d')
+a = PresidentsPlayer('Adam')
+b = PresidentsPlayer('Bobby')
+c = PresidentsPlayer('Collin')
+d = PresidentsPlayer('Dave')
 for i in [a, b, c, d]:
     i.join_table(t)
-t.shuffle_deck()
-t.deal_cards()
+t.start_game()
 
 p = Presidents()
 p0 = Presidents()
