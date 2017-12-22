@@ -7,9 +7,6 @@ class Card:
     class for cards and card comparisons
     """
     suite_dict = {'c': 'Clubs', 'd': 'Diamonds', 'h': 'Hearts', 's': 'Spades'}
-    # value_dict = {'1': 'Two', '2': 'Three', '3': 'Four', '4': 'Five', '5': 'Six',
-    #                '6': 'Seven', '7': 'Eight', '8': 'Nine', '9': 'Ten', 'j': 'Jack',
-    #                'q': 'Queen', 'k': 'King', 'a': 'Ace'}
     value_dict = {'1': 2, '2': 3, '3': 4, '4': 5, '5': 6, '6': 7, '7': 8, '8': 9,
                   '9': 10, 'j': 'Jack', 'q': 'Queen', 'k': 'King', 'a': 'Ace'}
 
@@ -149,16 +146,29 @@ class Player:
         for i in sorted(hand_indeces, reverse=True):
             desired_cards.append(self.cards.pop(i))
         # create a hand using the type of hand that the game provides
-        desired_hand = self.game.hand(desired_cards)
+        try:
+            desired_hand = self.game.hand(desired_cards)
+        # if the creation of the hand fails, append the cards back into the player's cards
+        except:
+            for card in desired_cards:
+                self.cards.append(card)
+                raise           
+        # if the hand is successfully created, add it to the player's hands
         self.hands.append(desired_hand)
         
     def remove_from_hand(self, hand_ind, to_remove):
+        hand_ind = int(hand_ind)
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         return
 
     def add_to_hand(self, hand_ind, to_add):
+        hand_ind = int(hand_ind)
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         return
 
     def unhand_hand(self, hand_ind):
+        hand_ind = int(hand_ind)
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         popped_hand = self.hands.pop(hand_ind)
         while popped_hand.cards:
             self.cards.append(popped_hand.cards.pop())
@@ -172,11 +182,6 @@ class Player:
             hand.validate()
 
     @property
-    def last_played(self):
-        assert self.table, 'Must be at a table to view hands'
-        return self.table.played[-1]
-
-    @property
     def hands(self):
         assert self.table, 'Must be at a table to view hands'
         return self.table.hands[self.spot]
@@ -185,6 +190,12 @@ class Player:
     def cards(self):
         assert self.table, 'Must be at a table to view non-hands'
         return self.table.cards[self.spot]
+
+    # this is for debugging
+    @cards.setter
+    def cards(self, val):
+        assert self.table, 'Must be at a table to view non-hands'
+        self.table.cards[self.spot] = val
 
     @property
     def all(self):
@@ -203,72 +214,98 @@ class PresidentsPlayer(Player):
         Player.__init__(self, name)
         self.func_dict =\
         {   
-            'hand': (self.create_hand, "use shorthand versions of card names separated by spaces to create a hand, e.g. `hand s2 h2 d2 c2 sa'"),
-            'view': (self.view, "look at both your hands and individual cards with 'view all' and look at them seperately with 'view hands' and 'view cards', respectively"),
-            'help': (self.help, 'list the command options and short descriptions of each'),
-            'play': (self.play_hand, 'FIX play the hand at the hand index provided FIX'),
-            'pass': (self.pass_turn, 'FIX FIX')
+            'view': (self.view,
+                "'view cards': show cards\n            'view hands': show hands\n            'view all': show cards and hands\n            'view last': show last card played"),
+            'hand': (self.create_hand,
+                "use shorthand versions of card names separated by spaces to create a hand,\n            e.g. 'hand s2 h2 d2 c2 sa' creates a 2 bomb with an Ace of Spades"),
+            'unhand': (self.unhand_hand,
+                "deconstruct the hand at index i\n            i.e. 'unhand i' puts all the individual cards which made up the i-th hand back in your cards"),
+            'play': (self.play_hand, 
+                "play the hand at index i\n            i.e. 'play i' plays the i-th hand in hands\n            view hands and corresponding index with 'view hands'"),
+            'pass': (self.pass_turn,
+                'pass on the current hand being played on'),
+            'help': (self.help,
+                'list the command options and short descriptions of each'),
         }
         self.done = False
-
+        self.post_bombing = False
+    
+    def create_hand(self, *cards):
+        cards = [card[0]+self.game.UI_to_backend_dict[card[1:]] for card in cards]
+        Player.create_hand(self, *cards)
+        # check if the hand just added to hands is a valid president's hand, if not, unhand it
+        just_created = self.hands[-1]
+        just_created.validate()
+        if not just_created.valid:
+            self.unhand_hand(-1)
+        
     def play_hand(self, hand_ind):
         assert self.game, 'Must be playing a game to play a hand.'
         assert self.table, 'Must be at a table to play cards.'
-        if not isinstance(hand_ind, int):
-            hand_ind = int(hand_ind)
-        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
+        # allow hands to be single card shorthand strings and do the hand building automatically
+        # check if hand_ind is a string with a suite shorthand for the first letter
+        if isinstance(hand_ind, str) and hand_ind[0] in self.game.suite_order:
+            self.create_hand(hand_ind)
+            # after creating the single card hand, try to play it
+            try:
+                self.play_hand(-1)
+            # if it can't be played, unhand the created hand
+            except:
+                self.unhand_hand(-1)
+                raise
+            return
+        hand_ind = int(hand_ind)
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think!'
         hand_to_play = self.hands[hand_ind]
         # if the hand wanting to played is not valid, attempt to validate it
         if not hand_to_play.valid:
             hand_to_play.validate()            
-            assert hand_to_play.valid, 'Can only play valid hands'
+            assert hand_to_play.valid, 'Can only play valid hands.'
         top_of_played = self.table.played[-1]
+        passes = self.table.passes_on_top
         if isinstance(top_of_played, PresidentsStart):
             assert Card('c','2') in hand_to_play, 'The starting hand must contain the 3 of Clubs.'
             # if the hand includes the 3 of clubs, remove the hand from the player's hands
             # and append it to the list of played cards
             self.force_play_hand(hand_ind, hand_to_play)
-        # handle multiple numbers of passes
-        # if there are 1 or 2 passes at the top of the played cards, the player must beat
-        # the card before the passes
-        # if there are 3 passes, all players have passed and the current player is allowed
-        # to play any hand
-        # CREATE A PASS COUNTER BECAUSE THIS IS DISGUSTING
-        elif isinstance(top_of_played, PresidentsPass):
+        # if there is only one pass, then the current player must beat the card below the pass
+        elif passes == 1:
             before_top = self.table.played[-2]
-            # if the top card is a Pass, check if the previous one was also a pass
-            if isinstance(before_top, PresidentsPass):
-                before_before_top = self.table.played[-3]
-                # the card before the top card is a pass, check if the card before that
-                # was also a pass
-                if isinstance(before_before_top, PresidentsPass):
-                    # if there are 3 passes in a row, the current player is allowed to play
-                    # any hand that they want
-                    self.force_play_hand(hand_ind, hand_to_play)
-                # if there are only 2 passes in a row, then the current player must beat the
-                # card below the 2 passes
-                else:
-                    assert hand_to_play > before_before_top, 'This hand cannot beat the last!'
-                    self.force_play_hand(hand_ind, hand_to_play)
-            # if there is only one pass, then the current player must beat the card below
-            # the pass
-            else:
-                assert hand_to_play > before_top, 'This hand cannot beat the last!'
-                self.force_play_hand(hand_ind, hand_to_play)
+            assert hand_to_play > before_top, 'This hand cannot beat the last! (1)'
+            self.force_play_hand(hand_ind, hand_to_play)
+        # if there are only 2 passes in a row, then the current player must beat the card 
+        # below the 2 passes
+        elif passes == 2:
+            before_before_top = self.table.played[-3]
+            assert hand_to_play > before_before_top, 'This hand cannot beat the last! (2)'
+            self.force_play_hand(hand_ind, hand_to_play)
+        # if there are 3 passes in a row, the current player is allowed to play any hand 
+        # that they want
+        elif passes == 3:
+            self.force_play_hand(hand_ind, hand_to_play)
         # if the last card played is neither a Start or a Pass, simply try to beat it
         else:
-            assert hand_to_play > top_of_played, 'This hand cannot beat the last!'
-            self.force_play_hand(hand_ind, hand_to_play)
+            if not self.post_bombing:
+                assert hand_to_play > top_of_played, 'This hand cannot beat the last! (3)'
+            # if the player is playing a hand post-bombing, force the hand played
+            else:
+                self.post_bombing = False
+                self.force_play_hand(hand_ind, hand_to_play)
 
     def force_play_hand(self, hand_ind, hand_to_play=None):
         if not hand_to_play:
             hand_to_play = self.hands[hand_ind]
         self.hands.pop(hand_ind)
         self.table.played.append(hand_to_play)
+        print(f'{self} played a {hand_to_play.type}: {sorted(hand_to_play)}')
         # if current player has no more hands or cards remaining, display his/her position
         # for next round and decrement the number of players remaining
         self.announce_pos_if_done()
-        self.next_player()
+        if hand_to_play.type == 'bomb':
+            self.post_bombing = True
+            print(f"It's your turn again, {self}! Enter 'help' to see your options!")
+        else:
+            self.next_player()
     
     def announce_pos_if_done(self):
         if self.all == []:
@@ -286,23 +323,30 @@ class PresidentsPlayer(Player):
     def pass_turn(self):
         assert self.game, 'Must be playing a game to play a hand.'
         assert self.table, 'Must be at a table to play cards.'
-        assert not isinstance(self.last_played, PresidentsStart), 'Cannot pass when you have the 3 of Clubs!'
+        assert not isinstance(self.table.played[-1], PresidentsStart), 'Cannot pass when you have the 3 of Clubs!'
+        assert self.table.passes_on_top < 3, 'No one beat your last hand, play any hand you want!'
         self.table.played.append(PresidentsPass())
+        print(f'{self} passed!')
         self.next_player()
     
     def view(self, which):
         if which == 'all':
-            print(f'Hands: {self.hands}\nCards: {sorted(self.cards)}')
+            self.view('cards')
+            self.view('hands')
+            # print(f'Hands: {[sorted(hand) for hand in self.hands]}\nCards: {sorted(self.cards)}')
         elif which == 'hands':
-            print(self.hands)
+            for i, hand in enumerate(self.hands):
+                print(f'{i}: {hand.cards}')
         elif which == 'cards':
             print(sorted(self.cards))
         elif which == 'last':
-            print(self.table.played[-1])
+            print(f'What you have to beat: {self.table.last_played.cards}')
+        else:
+            print(f"{which} is not a valid argument for view. Enter 'help' to see your options")
 
     def help(self):
         for shortcut, info in self.func_dict.items():
-            print(f'{shortcut}: {info[1]}')
+            print(f'{shortcut.ljust(10)}: {info[1]}')
 
     def func_lookup(self, shortcut):
         # returns None if the function is not in the player function dictionary
@@ -405,6 +449,29 @@ class PresidentsTable(Table):
         assert isinstance(player, PresidentsPlayer), 'Only PresidentsPlayers can sit at PresidentsTables.'
         Table.add_player(self, player)
 
+    @property
+    def passes_on_top(self):
+        passes = 0
+        # only check the top 3 cards that have been played
+        for hands in self.played[-1:-4:-1]:
+            if isinstance(hands, PresidentsPass):
+                passes += 1
+            else:
+                break
+        return passes
+
+    @property
+    def last_played(self):
+        passes = self.passes_on_top
+        if passes == 0:
+            return self.played[-1]
+        elif passes == 1:
+            return self.played[-2]
+        elif passes == 2:
+            return self.played[-3]
+        elif passes == 3:
+            return self.played[-4]
+
 
 class Hand:
     """
@@ -471,22 +538,23 @@ class PresidentsHand(Hand):
     """
     class for presidents hands
     """
-    def __init__(self, cards=[]):
+    def __init__(self, cards=[], valid=False):
         assert len(cards) <= 5, 'PresidentsHands can consist of 5 cards maximum.'
         Hand.__init__(self, cards)
         # non-repeating pairwise comparison of cards in hand
         for i, card0 in enumerate(self.cards[:-1]):
             for card1 in self.cards[i+1:]:
                 assert card0 != card1, 'All cards in a presidents hand must be unique.'
-        self.valid = False
+        self.valid = valid
 
     # validate and label presidents hand
-    def validate(self):
+    def validate(self, print_message=True):
         if self.valid:
             pass  
         elif len(self) == 1:
             self.valid = True
             self.type = 'single'
+            return
         elif len(self) == 2:
             if self.is_double():
                 self.valid = True
@@ -511,7 +579,8 @@ class PresidentsHand(Hand):
             elif self.is_straight():
                 self.valid = True
                 self.type = 'straight'
-        self.validation_message()
+        if print_message:
+            self.validation_message()
 
     def is_double(self):
         assert len(self) == 2, 'Doubles consist of exactly 2 cards.'
@@ -556,7 +625,13 @@ class PresidentsHand(Hand):
             i0, i1 = remaining_indeces
             # create a hand using the cards at the remaining indeces
             remaining_hand = PresidentsHand([sorted_hand[i0], sorted_hand[i1]])
-            return remaining_hand.is_double()
+            if remaining_hand.is_double():
+                # save the triple for fullhouse comparisons
+                self.triple = PresidentsHand(sorted_hand[i:i+3])
+                self.triple.validate(print_message=False)
+                return True
+            else:
+                return False
 
     def is_straight(self):
         assert len(self) == 5, 'straights consist of exactly 5 cards'
@@ -580,25 +655,54 @@ class PresidentsHand(Hand):
         sorted_hand = PresidentsHand(sorted(self))
         # since the cards are sorted by value, then either the first or last
         # four cards being a quad will mean a bomb
-        return sorted_hand[0:4].is_quad() or sorted_hand[1:5].is_quad()
+        first_four = sorted_hand[0:4]
+        last_four = sorted_hand[1:5]
+        if first_four.is_quad():
+            self.bomb_card = max(first_four)
+            return True
+        elif last_four.is_quad():
+            self.bomb_card = max(last_four)
+            return True
+        else:
+            return False
 
     def validation_message(self):
         if self.valid:
-            print(f'{self} is a valid {self.type} hand.')
+            print(f'{sorted(self)} is a valid {self.type} hand!')
         else:
-            print(f'{self} is not a valid hand.')
+            print(f'{sorted(self)} is not a valid Presidents hand.')
 
     def comparison_assert(self, other):
-        assert self.game is other.game, 'This method requires both hands to be tied to the same game instance.'
-        assert self.valid and other.valid, 'This method requires both hands to be valid.'
-        assert self.type == self.type, 'This method requires both hands to have the type.'
+        assert self.game is other.game, 'This requires both hands to be tied to the same game instance.'
+        assert self.valid and other.valid, 'This requires both hands to be valid.'
+        assert self.type == other.type, f"You can't play a {self.type} on a {other.type}!"
+
+    # PresidentsHands can never be equal to each other
 
     def __lt__(self, other):
+        # trivial bomb checks
+        if self.type == 'bomb' and other.type != 'bomb':
+            return False
+        if self.type != 'bomb' and other.type == 'bomb':
+            return True
         self.comparison_assert(other)
+        if self.type == 'fullhouse':
+            return self.triple < other.triple
+        if self.type == 'bomb':
+            return self.bomb_card < other.bomb_card
         return max([card for card in self.cards]) < max([card for card in other.cards])
 
     def __gt__(self, other):
+        # trivial bomb checks
+        if self.type == 'bomb' and other.type != 'bomb':
+            return True
+        if self.type != 'bomb' and other.type == 'bomb':
+            return False
         self.comparison_assert(other)
+        if self.type == 'fullhouse':
+            return self.triple > other.triple
+        if self.type == 'bomb':
+            return self.bomb_card > other.bomb_card
         return max([card for card in self.cards]) > max([card for card in other.cards])
 
     def __repr__(self):
@@ -617,12 +721,13 @@ class Presidents:
     # in the application backend and database, all UI versions have 1-1 card labels
     # e.g. 3 of CLubs is 'c2' in the backend and database but is 'c3' in all UI
     value_order = ['2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a', '1']
-    print(suite_order)
     order = [Card(j, i) for i in value_order
                         # super odd error here: putting suite_order results in a name error
                         # seems to break after the first for in the list comp, not sure if intended
                         for j in ['c', 'd', 'h', 's']] 
     hand = PresidentsHand
+    UI_to_backend_dict = {'2': '1', '3': '2', '4': '3', '5': '4', '6': '5', '7': '6', '8': '7',
+                          '9': '8', '10': '9', 'j': 'j', 'q': 'q', 'k': 'k', 'a': 'a'}
     
     def __init__(self):
         # president's card deck, with cards ordered from weakest to strongest
@@ -632,7 +737,6 @@ class Presidents:
         # might add ability to start a game with table included
         self.table = None
         self.current_player = None
-
 
     @property
     def played(self):
@@ -669,11 +773,11 @@ class Presidents:
         print(f'{self.current_player.name} has the 3 of Clubs!')
         
     def report_turn(self):
-        print(f"It's your turn, {self.current_player}! Enter help to see your options!")
+        print(f"It's your turn, {self.current_player}! Enter 'help' to see your options!")
 
     def setup_table(self):
-        self.table.shuffle_deck()
-        self.table.deal_cards()
+        # self.table.shuffle_deck()
+        # self.table.deal_cards()
         self.table.played.append(PresidentsStart())
 
     def game_loop(self):
@@ -686,7 +790,7 @@ class Presidents:
                 args = pres_in_tokens[1:]
                 func = self.current_player.func_lookup(shortcut)
                 if not func:
-                    print(f'{shortcut} is not a valid command. Enter help to see your options!')
+                    print(f"{shortcut} is not a valid command. Enter 'help' to see your options!")
                     continue
                 if args:
                     func(*args)
@@ -701,6 +805,8 @@ class Presidents:
             except EOFError:
                 print()
                 return
+            except AssertionError as err:
+                print(err)
             # except Exception as err:
             #     print(f"The following error might not make sense, but you might be able to use it to tell what's wrong!\n{err}")
 
@@ -745,30 +851,96 @@ class PresidentsPass:
 
 
 t = PresidentsTable()
+p = t.game
 a = PresidentsPlayer('Adam')
 b = PresidentsPlayer('Bobby')
 c = PresidentsPlayer('Collin')
 d = PresidentsPlayer('Dave')
 for i in [a, b, c, d]:
     i.join_table(t)
+a.cards = [
+    Card('c','3',p),
+    Card('d','3',p),
+    Card('h','3',p),
+    Card('s','3',p),
+    Card('c','4',p),
+    Card('d','4',p),
+    Card('h','4',p),
+    Card('s','4',p),
+    Card('c','5',p),
+    Card('d','5',p),
+    Card('h','5',p),
+    Card('s','5',p),
+    Card('c','6',p),
+]
+b.cards = [
+    Card('c','7',p),
+    Card('d','7',p),
+    Card('h','7',p),
+    Card('s','7',p),
+    Card('c','8',p),
+    Card('d','8',p),
+    Card('h','8',p),
+    Card('s','8',p),
+    Card('c','9',p),
+    Card('d','9',p),
+    Card('h','9',p),
+    Card('s','9',p),
+    Card('d','6',p),
+]
+c.cards = [
+    Card('c','j',p),
+    Card('d','j',p),
+    Card('h','j',p),
+    Card('s','j',p),
+    Card('c','2',p),
+    Card('d','2',p),
+    Card('h','2',p),
+    Card('s','2',p),
+    Card('c','q',p),
+    Card('d','q',p),
+    Card('h','q',p),
+    Card('s','q',p),
+    Card('h','6',p),
+]
+d.cards = [
+    Card('c','k',p),
+    Card('d','k',p),
+    Card('h','k',p),
+    Card('s','k',p),
+    Card('c','a',p),
+    Card('d','a',p),
+    Card('h','a',p),
+    Card('s','a',p),
+    Card('c','1',p),
+    Card('d','1',p),
+    Card('h','1',p),
+    Card('s','1',p),
+    Card('s','6',p),
+]
 t.start_game()
+# hand c3 d3 h3 s3 h7
+# hand cj dj hj sj cq
+# hand dq hq sq
+
 
 p = Presidents()
 p0 = Presidents()
 p1 = Presidents()
-h = Hand([Card('c', 'k', p),
-                    Card('d', '9', p),
-                    Card('h', '8', p),
-                    Card('s', '4', p),
-                    Card('c', '5', p),
-                    Card('c', '1', p),
-                    Card('d', '2', p),
-                    Card('h', '3', p),
-                    Card('s', '4', p),
-                    Card('c', '6', p)])
+# h = PresidentsHand([Card('d', '3', p),
+#                     Card('h', '3', p),
+#                     Card('s', '3', p),
+#                     Card('c', '4', p),
+#                     Card('d', '4', p)])
 
-j = PresidentsHand([Card('c', '9', p0),
-                    Card('d', '9', p0)])
+j = PresidentsHand([Card('c', '1', p0),
+                    Card('s', '1', p0),
+                    Card('c', '7', p0),
+                    Card('h', '7', p0),
+                    Card('s', '7', p0)])
 
-k = PresidentsHand([Card('s', '1', p0),
-                    Card('h', '1', p0)])
+k = PresidentsHand([Card('c', '3', p0),
+                    Card('d', '3', p0),
+                    Card('d', '5', p0),
+                    Card('h', '5', p0),
+                    Card('s', '5', p0)])
