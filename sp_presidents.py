@@ -2,6 +2,7 @@ from helpers import main
 from random import shuffle as rand_shuffle
 from itertools import cycle
 
+
 class Card:
     """
     class for cards and card comparisons
@@ -228,7 +229,6 @@ class PresidentsPlayer(Player):
                 'list the command options and short descriptions of each'),
         }
         self.done = False
-        self.post_bombing = False
     
     def create_hand(self, *cards):
         cards = [card[0]+self.game.UI_to_backend_dict[card[1:]] for card in cards]
@@ -247,9 +247,6 @@ class PresidentsPlayer(Player):
         if isinstance(hand_ind, str):
             if hand_ind[0] in self.game.suite_order:
                 self.create_hand(hand_ind)
-            # # if suite and value are accidentally switched for single card plays
-            # elif hand_ind[-1] in self.game.suite_order:
-            #     self.create_hand(hand_ind[1:]+hand_ind[0])
             # after creating the single card hand, try to play it
             try:
                 self.play_hand(-1)
@@ -265,36 +262,30 @@ class PresidentsPlayer(Player):
         if not hand_to_play.valid:
             hand_to_play.validate()            
             assert hand_to_play.valid, 'Can only play valid hands.'
-        top_of_played = self.table.played[-1]
+        last_played = self.table.last_played
         passes = self.table.passes_on_top
-        if isinstance(top_of_played, PresidentsStart):
+        if isinstance(last_played, PresidentsStart):
             assert Card('c','2') in hand_to_play, 'The starting hand must contain the 3 of Clubs.'
             # if the hand includes the 3 of clubs, remove the hand from the player's hands
             # and append it to the list of played cards
             self.force_play_hand(hand_ind, hand_to_play)
-        # if there is only one pass, then the current player must beat the card below the pass
-        elif passes == 1:
-            before_top = self.table.played[-2]
-            assert hand_to_play > before_top, 'This hand cannot beat the last! (1)'
-            self.force_play_hand(hand_ind, hand_to_play)
-        # if there are only 2 passes in a row, then the current player must beat the card 
-        # below the 2 passes
-        elif passes == 2:
-            before_before_top = self.table.played[-3]
-            assert hand_to_play > before_before_top, 'This hand cannot beat the last! (2)'
-            self.force_play_hand(hand_ind, hand_to_play)
-        # if there are 3 passes in a row, the current player is allowed to play any hand 
-        # that they want
-        elif passes == 3:
-            self.force_play_hand(hand_ind, hand_to_play)
-        # if the last card played is neither a Start or a Pass, simply try to beat it
+        # current player can play anything that he/she wants if there are either players_left
+        # (which a number) passes on top of the deck or players_left - 1 passes on top of the deck 
         else:
-            if not self.post_bombing:
-                assert hand_to_play > top_of_played, 'This hand cannot beat the last! (3)'
-            # if the player is playing a hand post-bombing, force the hand played
+            if last_played.winning and passes == self.game.players_left:
+                print('huh')
+                self.force_play_hand(hand_ind, hand_to_play)
+            elif last_played.winning:
+                print('ok')
+                assert hand_to_play > last_played, 'This hand cannot beat the last!'
+                self.force_play_hand(hand_ind, hand_to_play)
+            elif passes == self.game.players_left - 1:
+                print('what')
+                self.force_play_hand(hand_ind, hand_to_play)
             else:
-                self.post_bombing = False
-            self.force_play_hand(hand_ind, hand_to_play)
+                print('ya')
+                assert hand_to_play > last_played, 'This hand cannot beat the last!'
+                self.force_play_hand(hand_ind, hand_to_play)
 
     def force_play_hand(self, hand_ind, hand_to_play=None):
         if not hand_to_play:
@@ -304,36 +295,43 @@ class PresidentsPlayer(Player):
         print(f'{self} played a {hand_to_play.type}: {sorted(hand_to_play)}')
         # if current player has no more hands or cards remaining, display his/her position
         # for next round and decrement the number of players remaining
-        self.announce_pos_if_done()
-        if hand_to_play.type == 'bomb':
-            self.post_bombing = True
-            print(f"It's your turn again, {self}! Enter 'help' to see your options!")
+        self.do_things_if_done()
+        if self.game.players_left == 1:
+            self.next_player(report=False)
         else:
-            if self.game.players_left == 1:
-                return
             self.next_player()
     
-    def announce_pos_if_done(self):
+    def do_things_if_done(self):
         if self.all == []:
             self.done = True
             self.game.announce_position()
             self.game.players_left -= 1
+            self.table.last_played.winning = True
     
-    def next_player(self):
+    def next_player(self, report=True):
         # only used the magic method here so the method chaining would make sense
         self.game.current_player = self.game.next_player_gen.__next__()
         while self.game.current_player.done:
             self.game.current_player = self.game.next_player_gen.__next__()
-        self.game.report_turn()
+        if report:
+            self.game.report_turn()
 
     def pass_turn(self):
         assert self.game, 'Must be playing a game to play a hand.'
         assert self.table, 'Must be at a table to play cards.'
         assert not isinstance(self.table.played[-1], PresidentsStart), 'Cannot pass when you have the 3 of Clubs!'
-        assert self.table.passes_on_top < 3, 'No one beat your last hand, play any hand you want!'
-        self.table.played.append(PresidentsPass())
-        print(f'{self} passed!')
-        self.next_player()
+        if self.table.last_played.winning and self.table.passes_on_top == self.game.players_left:
+            print('No one beat the last hand, play any hand you want!')
+        elif self.table.last_played.winning:
+            self.table.played.append(PresidentsPass())
+            print(f'{self} passed!')
+            self.next_player()
+        elif self.table.passes_on_top == self.game.players_left - 1:
+            print('No one beat your last hand, play any hand you want!')
+        else:
+            self.table.played.append(PresidentsPass())
+            print(f'{self} passed!')
+            self.next_player()        
     
     def view(self, which):
         if which == 'all':
@@ -346,9 +344,14 @@ class PresidentsPlayer(Player):
         elif which == 'cards':
             print(sorted(self.cards))
         elif which == 'last':
-            if self.post_bombing or self.table.passes_on_top == 3:
+            if self.table.last_played.winning and self.table.passes_on_top == self.game.players_left:
                 print(f'You can play any hand you want!')
-            print(f'What you have to beat: {self.table.last_played.cards}')
+            elif self.table.last_played.winning:
+                print(f'What you have to beat: {self.table.last_played.cards}')
+            elif self.table.passes_on_top == self.game.players_left - 1:
+                print(f'You can play any hand you want!')
+            else:
+                print(f'What you have to beat: {self.table.last_played.cards}')
         else:
             print(f"{which} is not a valid argument for view. Enter 'help' to see your options")
 
@@ -460,8 +463,7 @@ class PresidentsTable(Table):
     @property
     def passes_on_top(self):
         passes = 0
-        # only check the top 3 cards that have been played
-        for hands in self.played[-1:-4:-1]:
+        for hands in self.played[::-1]:
             if isinstance(hands, PresidentsPass):
                 passes += 1
             else:
@@ -498,7 +500,6 @@ class Hand:
         else:
             self.game = None
         self.cards = cards
-
 
     # allows indexing and slicing into Hands
     def __getitem__(self, key):
@@ -554,6 +555,7 @@ class PresidentsHand(Hand):
             for card1 in self.cards[i+1:]:
                 assert card0 != card1, 'All cards in a presidents hand must be unique.'
         self.valid = valid
+        self.winning = False
 
     # validate and label presidents hand
     def validate(self, print_message=True):
@@ -716,6 +718,7 @@ class PresidentsHand(Hand):
     def __repr__(self):
         return f'PresidentsHand({[card for card in self.cards]})'
     
+
 class Presidents:
     """
     Presidents card game class, contains idk.
@@ -787,9 +790,11 @@ class Presidents:
         print(f"It's your turn, {self.current_player}! Enter 'help' to see your options!")
 
     def setup_table(self):
-        self.table.shuffle_deck()
-        self.table.deal_cards()
         self.table.played.append(PresidentsStart())
+        # debugging allows for the assignment of custom cards to each player
+        if not self.debug:
+            self.table.shuffle_deck()
+            self.table.deal_cards()
 
     def game_loop(self):
         while True:
@@ -877,12 +882,3 @@ def quick_game(debug=False):
     for name in [name] + other_names:
         PresidentsPlayer(name).join_table(t)
     t.start_game()
-
-# print('Welcome to Single Player Command Line Presidents!')
-# t = PresidentsTable()
-# name = input('What is your name? ')
-# print('Who do you want to play presidents with?')
-# other_names = [input('Other Name: '), input('Other Name: '), input('Other Name: ')]
-# for name in [name] + other_names:
-#     PresidentsPlayer(name).join_table(t)
-# t.start_game()
