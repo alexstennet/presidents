@@ -157,18 +157,18 @@ class Player:
         self.hands.append(desired_hand)
         
     def remove_from_hand(self, hand_ind, to_remove):
-        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         hand_ind = int(hand_ind)
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         return
 
     def add_to_hand(self, hand_ind, to_add):
-        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         hand_ind = int(hand_ind)
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         return
 
     def unhand_hand(self, hand_ind):
-        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         hand_ind = int(hand_ind)
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         popped_hand = self.hands.pop(hand_ind)
         while popped_hand.cards:
             self.cards.append(popped_hand.cards.pop())
@@ -228,6 +228,7 @@ class PresidentsPlayer(Player):
                 'list the command options and short descriptions of each'),
         }
         self.done = False
+        self.post_bombing = False
     
     def create_hand(self, *cards):
         cards = [card[0]+self.game.UI_to_backend_dict[card[1:]] for card in cards]
@@ -245,11 +246,16 @@ class PresidentsPlayer(Player):
         # check if hand_ind is a string with a suite shorthand for the first letter
         if isinstance(hand_ind, str) and hand_ind[0] in self.game.suite_order:
             self.create_hand(hand_ind)
-            # after creating the single card hand, play it
-            self.play_hand(-1)
+            # after creating the single card hand, try to play it
+            try:
+                self.play_hand(-1)
+            # if it can't be played, unhand the created hand
+            except:
+                self.unhand_hand(-1)
+                raise
             return
         hand_ind = int(hand_ind)
-        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think!'
         hand_to_play = self.hands[hand_ind]
         # if the hand wanting to played is not valid, attempt to validate it
         if not hand_to_play.valid:
@@ -265,13 +271,13 @@ class PresidentsPlayer(Player):
         # if there is only one pass, then the current player must beat the card below the pass
         elif passes == 1:
             before_top = self.table.played[-2]
-            assert hand_to_play > before_top, 'This hand cannot beat the last!'
+            assert hand_to_play > before_top, 'This hand cannot beat the last! (1)'
             self.force_play_hand(hand_ind, hand_to_play)
         # if there are only 2 passes in a row, then the current player must beat the card 
         # below the 2 passes
         elif passes == 2:
             before_before_top = self.table.played[-3]
-            assert hand_to_play > before_before_top, 'This hand cannot beat the last!'
+            assert hand_to_play > before_before_top, 'This hand cannot beat the last! (2)'
             self.force_play_hand(hand_ind, hand_to_play)
         # if there are 3 passes in a row, the current player is allowed to play any hand 
         # that they want
@@ -279,8 +285,12 @@ class PresidentsPlayer(Player):
             self.force_play_hand(hand_ind, hand_to_play)
         # if the last card played is neither a Start or a Pass, simply try to beat it
         else:
-            assert hand_to_play > top_of_played, 'This hand cannot beat the last!'
-            self.force_play_hand(hand_ind, hand_to_play)
+            if not self.post_bombing:
+                assert hand_to_play > top_of_played, 'This hand cannot beat the last! (3)'
+            # if the player is playing a hand post-bombing, force the hand played
+            else:
+                self.post_bombing = False
+                self.force_play_hand(hand_ind, hand_to_play)
 
     def force_play_hand(self, hand_ind, hand_to_play=None):
         if not hand_to_play:
@@ -291,7 +301,11 @@ class PresidentsPlayer(Player):
         # if current player has no more hands or cards remaining, display his/her position
         # for next round and decrement the number of players remaining
         self.announce_pos_if_done()
-        self.next_player()
+        if hand_to_play.type == 'bomb':
+            self.post_bombing = True
+            print(f"It's your turn again, {self}! Enter 'help' to see your options!")
+        else:
+            self.next_player()
     
     def announce_pos_if_done(self):
         if self.all == []:
@@ -317,7 +331,9 @@ class PresidentsPlayer(Player):
     
     def view(self, which):
         if which == 'all':
-            print(f'Hands: {[sorted(hand) for hand in self.hands]}\nCards: {sorted(self.cards)}')
+            self.view('cards')
+            self.view('hands')
+            # print(f'Hands: {[sorted(hand) for hand in self.hands]}\nCards: {sorted(self.cards)}')
         elif which == 'hands':
             for i, hand in enumerate(self.hands):
                 print(f'{i}: {hand.cards}')
@@ -659,7 +675,7 @@ class PresidentsHand(Hand):
     def comparison_assert(self, other):
         assert self.game is other.game, 'This requires both hands to be tied to the same game instance.'
         assert self.valid and other.valid, 'This requires both hands to be valid.'
-        assert self.type == other.type, 'This requires both hands to have the same type.'
+        assert self.type == other.type, f"You can't play a {self.type} on a {other.type}!"
 
     # PresidentsHands can never be equal to each other
 
@@ -757,7 +773,7 @@ class Presidents:
         print(f'{self.current_player.name} has the 3 of Clubs!')
         
     def report_turn(self):
-        print(f"It's your turn, {self.current_player}! Enter help to see your options!")
+        print(f"It's your turn, {self.current_player}! Enter 'help' to see your options!")
 
     def setup_table(self):
         # self.table.shuffle_deck()
@@ -774,7 +790,7 @@ class Presidents:
                 args = pres_in_tokens[1:]
                 func = self.current_player.func_lookup(shortcut)
                 if not func:
-                    print(f'{shortcut} is not a valid command. Enter help to see your options!')
+                    print(f"{shortcut} is not a valid command. Enter 'help' to see your options!")
                     continue
                 if args:
                     func(*args)
@@ -903,7 +919,9 @@ d.cards = [
     Card('s','6',p),
 ]
 t.start_game()
-
+# hand c3 d3 h3 s3 h7
+# hand cj dj hj sj cq
+# hand dq hq sq
 
 
 p = Presidents()
