@@ -157,14 +157,17 @@ class Player:
         self.hands.append(desired_hand)
         
     def remove_from_hand(self, hand_ind, to_remove):
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         hand_ind = int(hand_ind)
         return
 
     def add_to_hand(self, hand_ind, to_add):
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         hand_ind = int(hand_ind)
         return
 
     def unhand_hand(self, hand_ind):
+        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         hand_ind = int(hand_ind)
         popped_hand = self.hands.pop(hand_ind)
         while popped_hand.cards:
@@ -179,11 +182,6 @@ class Player:
             hand.validate()
 
     @property
-    def last_played(self):
-        assert self.table, 'Must be at a table to view hands'
-        return self.table.played[-1]
-
-    @property
     def hands(self):
         assert self.table, 'Must be at a table to view hands'
         return self.table.hands[self.spot]
@@ -192,6 +190,12 @@ class Player:
     def cards(self):
         assert self.table, 'Must be at a table to view non-hands'
         return self.table.cards[self.spot]
+
+    # this is for debugging
+    @cards.setter
+    def cards(self, val):
+        assert self.table, 'Must be at a table to view non-hands'
+        self.table.cards[self.spot] = val
 
     @property
     def all(self):
@@ -226,7 +230,7 @@ class PresidentsPlayer(Player):
         self.done = False
     
     def create_hand(self, *cards):
-        cards = [card[0]+self.game.UI_to_backend_dict[card[1]] for card in cards]
+        cards = [card[0]+self.game.UI_to_backend_dict[card[1:]] for card in cards]
         Player.create_hand(self, *cards)
         # check if the hand just added to hands is a valid president's hand, if not, unhand it
         just_created = self.hands[-1]
@@ -243,6 +247,7 @@ class PresidentsPlayer(Player):
             self.create_hand(hand_ind)
             # after creating the single card hand, play it
             self.play_hand(-1)
+            return
         hand_ind = int(hand_ind)
         assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
         hand_to_play = self.hands[hand_ind]
@@ -282,7 +287,7 @@ class PresidentsPlayer(Player):
             hand_to_play = self.hands[hand_ind]
         self.hands.pop(hand_ind)
         self.table.played.append(hand_to_play)
-        print(f'{self} played a {hand_to_play.type}: {sorted(hand_to_play)}!')
+        print(f'{self} played a {hand_to_play.type}: {sorted(hand_to_play)}')
         # if current player has no more hands or cards remaining, display his/her position
         # for next round and decrement the number of players remaining
         self.announce_pos_if_done()
@@ -304,21 +309,24 @@ class PresidentsPlayer(Player):
     def pass_turn(self):
         assert self.game, 'Must be playing a game to play a hand.'
         assert self.table, 'Must be at a table to play cards.'
-        assert not isinstance(self.last_played, PresidentsStart), 'Cannot pass when you have the 3 of Clubs!'
+        assert not isinstance(self.table.played[-1], PresidentsStart), 'Cannot pass when you have the 3 of Clubs!'
         assert self.table.passes_on_top < 3, 'No one beat your last hand, play any hand you want!'
         self.table.played.append(PresidentsPass())
+        print(f'{self} passed!')
         self.next_player()
     
     def view(self, which):
         if which == 'all':
-            print(f'Hands: {self.hands}\nCards: {sorted(self.cards)}')
+            print(f'Hands: {[sorted(hand) for hand in self.hands]}\nCards: {sorted(self.cards)}')
         elif which == 'hands':
             for i, hand in enumerate(self.hands):
                 print(f'{i}: {hand.cards}')
         elif which == 'cards':
             print(sorted(self.cards))
         elif which == 'last':
-            print(f'What you have to beat: {self.table.played[-1].cards}')
+            print(f'What you have to beat: {self.table.last_played.cards}')
+        else:
+            print(f"{which} is not a valid argument for view. Enter 'help' to see your options")
 
     def help(self):
         for shortcut, info in self.func_dict.items():
@@ -432,7 +440,21 @@ class PresidentsTable(Table):
         for hands in self.played[-1:-4:-1]:
             if isinstance(hands, PresidentsPass):
                 passes += 1
+            else:
+                break
         return passes
+
+    @property
+    def last_played(self):
+        passes = self.passes_on_top
+        if passes == 0:
+            return self.played[-1]
+        elif passes == 1:
+            return self.played[-2]
+        elif passes == 2:
+            return self.played[-3]
+        elif passes == 3:
+            return self.played[-4]
 
 
 class Hand:
@@ -516,6 +538,7 @@ class PresidentsHand(Hand):
         elif len(self) == 1:
             self.valid = True
             self.type = 'single'
+            return
         elif len(self) == 2:
             if self.is_double():
                 self.valid = True
@@ -616,29 +639,54 @@ class PresidentsHand(Hand):
         sorted_hand = PresidentsHand(sorted(self))
         # since the cards are sorted by value, then either the first or last
         # four cards being a quad will mean a bomb
-        return sorted_hand[0:4].is_quad() or sorted_hand[1:5].is_quad()
+        first_four = sorted_hand[0:4]
+        last_four = sorted_hand[1:5]
+        if first_four.is_quad():
+            self.bomb_card = max(first_four)
+            return True
+        elif last_four.is_quad():
+            self.bomb_card = max(last_four)
+            return True
+        else:
+            return False
 
     def validation_message(self):
         if self.valid:
-            print(f'{self.cards} is a valid {self.type} hand!')
+            print(f'{sorted(self)} is a valid {self.type} hand!')
         else:
-            print(f'{self.cards} is not a valid Presidents hand.')
+            print(f'{sorted(self)} is not a valid Presidents hand.')
 
     def comparison_assert(self, other):
-        assert self.game is other.game, 'This method requires both hands to be tied to the same game instance.'
-        assert self.valid and other.valid, 'This method requires both hands to be valid.'
-        assert self.type == self.type, 'This method requires both hands to have the type.'
+        assert self.game is other.game, 'This requires both hands to be tied to the same game instance.'
+        assert self.valid and other.valid, 'This requires both hands to be valid.'
+        assert self.type == other.type, 'This requires both hands to have the same type.'
+
+    # PresidentsHands can never be equal to each other
 
     def __lt__(self, other):
+        # trivial bomb checks
+        if self.type == 'bomb' and other.type != 'bomb':
+            return False
+        if self.type != 'bomb' and other.type == 'bomb':
+            return True
         self.comparison_assert(other)
         if self.type == 'fullhouse':
             return self.triple < other.triple
+        if self.type == 'bomb':
+            return self.bomb_card < other.bomb_card
         return max([card for card in self.cards]) < max([card for card in other.cards])
 
     def __gt__(self, other):
+        # trivial bomb checks
+        if self.type == 'bomb' and other.type != 'bomb':
+            return True
+        if self.type != 'bomb' and other.type == 'bomb':
+            return False
         self.comparison_assert(other)
         if self.type == 'fullhouse':
             return self.triple > other.triple
+        if self.type == 'bomb':
+            return self.bomb_card > other.bomb_card
         return max([card for card in self.cards]) > max([card for card in other.cards])
 
     def __repr__(self):
@@ -712,8 +760,8 @@ class Presidents:
         print(f"It's your turn, {self.current_player}! Enter help to see your options!")
 
     def setup_table(self):
-        self.table.shuffle_deck()
-        self.table.deal_cards()
+        # self.table.shuffle_deck()
+        # self.table.deal_cards()
         self.table.played.append(PresidentsStart())
 
     def game_loop(self):
@@ -787,13 +835,76 @@ class PresidentsPass:
 
 
 t = PresidentsTable()
+p = t.game
 a = PresidentsPlayer('Adam')
 b = PresidentsPlayer('Bobby')
 c = PresidentsPlayer('Collin')
 d = PresidentsPlayer('Dave')
 for i in [a, b, c, d]:
     i.join_table(t)
+a.cards = [
+    Card('c','3',p),
+    Card('d','3',p),
+    Card('h','3',p),
+    Card('s','3',p),
+    Card('c','4',p),
+    Card('d','4',p),
+    Card('h','4',p),
+    Card('s','4',p),
+    Card('c','5',p),
+    Card('d','5',p),
+    Card('h','5',p),
+    Card('s','5',p),
+    Card('c','6',p),
+]
+b.cards = [
+    Card('c','7',p),
+    Card('d','7',p),
+    Card('h','7',p),
+    Card('s','7',p),
+    Card('c','8',p),
+    Card('d','8',p),
+    Card('h','8',p),
+    Card('s','8',p),
+    Card('c','9',p),
+    Card('d','9',p),
+    Card('h','9',p),
+    Card('s','9',p),
+    Card('d','6',p),
+]
+c.cards = [
+    Card('c','j',p),
+    Card('d','j',p),
+    Card('h','j',p),
+    Card('s','j',p),
+    Card('c','2',p),
+    Card('d','2',p),
+    Card('h','2',p),
+    Card('s','2',p),
+    Card('c','q',p),
+    Card('d','q',p),
+    Card('h','q',p),
+    Card('s','q',p),
+    Card('h','6',p),
+]
+d.cards = [
+    Card('c','k',p),
+    Card('d','k',p),
+    Card('h','k',p),
+    Card('s','k',p),
+    Card('c','a',p),
+    Card('d','a',p),
+    Card('h','a',p),
+    Card('s','a',p),
+    Card('c','1',p),
+    Card('d','1',p),
+    Card('h','1',p),
+    Card('s','1',p),
+    Card('s','6',p),
+]
 t.start_game()
+
+
 
 p = Presidents()
 p0 = Presidents()
