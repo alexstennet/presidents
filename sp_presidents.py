@@ -244,8 +244,12 @@ class PresidentsPlayer(Player):
         assert self.table, 'Must be at a table to play cards.'
         # allow hands to be single card shorthand strings and do the hand building automatically
         # check if hand_ind is a string with a suite shorthand for the first letter
-        if isinstance(hand_ind, str) and hand_ind[0] in self.game.suite_order:
-            self.create_hand(hand_ind)
+        if isinstance(hand_ind, str):
+            if hand_ind[0] in self.game.suite_order:
+                self.create_hand(hand_ind)
+            # # if suite and value are accidentally switched for single card plays
+            # elif hand_ind[-1] in self.game.suite_order:
+            #     self.create_hand(hand_ind[1:]+hand_ind[0])
             # after creating the single card hand, try to play it
             try:
                 self.play_hand(-1)
@@ -290,7 +294,7 @@ class PresidentsPlayer(Player):
             # if the player is playing a hand post-bombing, force the hand played
             else:
                 self.post_bombing = False
-                self.force_play_hand(hand_ind, hand_to_play)
+            self.force_play_hand(hand_ind, hand_to_play)
 
     def force_play_hand(self, hand_ind, hand_to_play=None):
         if not hand_to_play:
@@ -305,6 +309,8 @@ class PresidentsPlayer(Player):
             self.post_bombing = True
             print(f"It's your turn again, {self}! Enter 'help' to see your options!")
         else:
+            if self.game.players_left == 1:
+                return
             self.next_player()
     
     def announce_pos_if_done(self):
@@ -340,6 +346,8 @@ class PresidentsPlayer(Player):
         elif which == 'cards':
             print(sorted(self.cards))
         elif which == 'last':
+            if self.post_bombing or self.table.passes_on_top == 3:
+                print(f'You can play any hand you want!')
             print(f'What you have to beat: {self.table.last_played.cards}')
         else:
             print(f"{which} is not a valid argument for view. Enter 'help' to see your options")
@@ -729,7 +737,8 @@ class Presidents:
     UI_to_backend_dict = {'2': '1', '3': '2', '4': '3', '5': '4', '6': '5', '7': '6', '8': '7',
                           '9': '8', '10': '9', 'j': 'j', 'q': 'q', 'k': 'k', 'a': 'a'}
     
-    def __init__(self):
+    def __init__(self, debug=False):
+        self.debug = debug
         # president's card deck, with cards ordered from weakest to strongest
         self.deck = Deck('Presidents',
                          [Card(j, i, self) for i in self.value_order 
@@ -737,6 +746,7 @@ class Presidents:
         # might add ability to start a game with table included
         self.table = None
         self.current_player = None
+        self.positions = []
 
     @property
     def played(self):
@@ -768,6 +778,7 @@ class Presidents:
     def find_3_of_clubs(self):
         assert isinstance(self.table.played[-1], PresidentsStart), 'Can only find the 3 of clubs at the beginning of the game.'
         for spot, player in self.table.spots.items():
+            # remember, cards are zero-indexed in the backend and database, c2 is the 3 of Clubs
             if Card('c', '2', self) in self.table.cards[spot]:
                 self.current_player = player
         print(f'{self.current_player.name} has the 3 of Clubs!')
@@ -776,8 +787,8 @@ class Presidents:
         print(f"It's your turn, {self.current_player}! Enter 'help' to see your options!")
 
     def setup_table(self):
-        # self.table.shuffle_deck()
-        # self.table.deal_cards()
+        self.table.shuffle_deck()
+        self.table.deal_cards()
         self.table.played.append(PresidentsStart())
 
     def game_loop(self):
@@ -792,12 +803,24 @@ class Presidents:
                 if not func:
                     print(f"{shortcut} is not a valid command. Enter 'help' to see your options!")
                     continue
-                if args:
-                    func(*args)
-                else:
-                    func()
+                try:
+                    if args:
+                        func(*args)
+                    else:
+                        func()
+                except Exception as err:
+                    print(err)
+                    print("Make sure arguments are in the correct form! Enter 'help' to check out the forms!")
+                    if self.debug:
+                        raise
                 if self.players_left == 1:
                     self.announce_position()
+                    print(f'\nThe game is over! The results are as follows:')
+                    print(f'President: {self.positions[0]}')
+                    print(f'Vice President: {self.positions[1]}')
+                    print(f'Vice Asshole: {self.positions[2]}')
+                    print(f'Asshole: {self.positions[3]}')
+                    print('\nTHANKS FOR PLAYING!')
                     break
             except KeyboardInterrupt:
                 print('\n\nKeyboardInterrupt')
@@ -819,6 +842,9 @@ class Presidents:
             print(f'Good work {self.current_player}! You are Vice Asshole!')
         elif self.players_left == 1:
             print(f'Sorry {self.current_player}! You are Asshole!')
+        else:
+            raise AssertionError('impossible number of players left')
+        self.positions.append(self.current_player)
 
     def __repr__(self):
         return 'Presidents Game Instance'
@@ -840,12 +866,23 @@ class PresidentsPass:
         return 'Pass'
 
 @main
-def quick_game():
+def quick_game(debug=False):
     print('Welcome to Single Player Command Line Presidents!')
     t = PresidentsTable()
+    if debug:
+        t.game.debug = True
     name = input('What is your name? ')
     print('Who do you want to play presidents with?')
     other_names = [input('Other Name: '), input('Other Name: '), input('Other Name: ')]
     for name in [name] + other_names:
         PresidentsPlayer(name).join_table(t)
     t.start_game()
+
+# print('Welcome to Single Player Command Line Presidents!')
+# t = PresidentsTable()
+# name = input('What is your name? ')
+# print('Who do you want to play presidents with?')
+# other_names = [input('Other Name: '), input('Other Name: '), input('Other Name: ')]
+# for name in [name] + other_names:
+#     PresidentsPlayer(name).join_table(t)
+# t.start_game()
