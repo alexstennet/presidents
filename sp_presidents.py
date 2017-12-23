@@ -1,21 +1,35 @@
 from helpers import main
-from random import shuffle as rand_shuffle
+import random
 from itertools import cycle
 
 
 class Card:
     """
-    class for cards and card comparisons
+    A general class for cards in a standard 52-card deck. These cards need not
+    be tied to any particular card game but some of their methods depend on the
+    game they are being used for, namely, comparing cards with each other.  
     """
     suite_dict = {'c': 'Clubs', 'd': 'Diamonds', 'h': 'Hearts', 's': 'Spades'}
-    value_dict = {'1': 2, '2': 3, '3': 4, '4': 5, '5': 6, '6': 7, '7': 8, '8': 9,
-                  '9': 10, 'j': 'Jack', 'q': 'Queen', 'k': 'King', 'a': 'Ace'}
+    # Note that the card values are zero-indexed to avoid having to store cards
+    # with value 10 with an additional character. Although this slightly confusing
+    # convention (you'll get used to it) is present in the backend and database,
+    # all implementations of UI will present card values as one would expect.
+    value_dict = {'1': '2', '2': '3', '3': '4', '4': '5', '5': '6', '6': '7',
+                  '7': '8', '8': '9', '9': '10', 'j': 'Jack', 'q': 'Queen',
+                  'k': 'King', 'a': 'Ace'}
 
-    def __init__(self, suite, value, game=None):
+    def __init__(self, suite, value):
+        if not isinstance(suite, str):
+            raise TypeError("Suites are the single letter strings: 'c', 'd', 'h', 's'.")
+        if not isinstance(value, str):
+            raise TypeError('Values must be given as strings, even for cards with numeric values.')
+        if suite not in Card.suite_dict:
+            raise ValueError("The only suites in the standard 52-card deck are: c, d, h, s.")
+        if value not in Card.value_dict:
+            raise ValueError('All values are zero-indexed, e.g. use 9 for 10, etc.')
         self.suite = suite
         self.value = value
         self.suite_value = self.suite + self.value
-        self.game = game
 
     def same_suite(self, other):
         return self.suite == other.suite
@@ -23,43 +37,28 @@ class Card:
     def same_value(self, other):
         return self.value == other.value
 
-    def game_assert(self, other):
-        assert self.game, 'This method requires a card tied to a game.'
-        assert other.game, 'This method requires a card tied to a game.'
-        assert self.game is other.game, 'This method requires both cards to be tied to the same game instance.'
+    def same_card(self, other):
+        return self.same_suite(other) and self.same_value(other)
 
+    # All card comparison methods must be provided by the child of the Card
+    # class corresponding to the game being played.
     def __lt__(self, other):
-        self.game_assert(other)
-        # convert the game's order to a (invalid) Hand so we can check if
-        # the card is in the list of game cards; this method follows for
-        # the rest of the comparisons 
-        game_cards_hand = Hand(self.game.order) 
-        return game_cards_hand.index(self) < game_cards_hand.index(other)
+        raise NotImplementedError('The < method must be provided by the child of the Card class corresponding to the game being played.')
 
     def __le__(self, other):
-        self.game_assert(other)
-        game_cards_hand = Hand(self.game.order) 
-        return game_cards_hand.index(self) <= game_cards_hand.index(other)
+        raise NotImplementedError('The <= method must be provided by the child of the Card class corresponding to the game being played.')
 
     def __eq__(self, other):
-        self.game_assert(other)
-        game_cards_hand = Hand(self.game.order) 
-        return game_cards_hand.index(self) == game_cards_hand.index(other)
+        raise NotImplementedError('The == method must be provided by the child of the Card class corresponding to the game being played.')
 
     def __ne__(self, other):
-        self.game_assert(other)
-        game_cards_hand = Hand(self.game.order) 
-        return game_cards_hand.index(self) != game_cards_hand.index(other)
+        raise NotImplementedError('The != method must be provided by the child of the Card class corresponding to the game being played.')
 
     def __ge__(self, other):
-        self.game_assert(other)
-        game_cards_hand = Hand(self.game.order) 
-        return game_cards_hand.index(self) >= game_cards_hand.index(other)
+        raise NotImplementedError('The > method must be provided by the child of the Card class corresponding to the game being played.')
 
     def __gt__(self, other):
-        self.game_assert(other)
-        game_cards_hand = Hand(self.game.order) 
-        return game_cards_hand.index(self) > game_cards_hand.index(other)
+        raise NotImplementedError('The >= method must be provided by the child of the Card class corresponding to the game being played.')
 
     def __repr__(self):
         suite = self.suite_dict[self.suite]
@@ -69,11 +68,64 @@ class Card:
     def __str__(self):
         return self.suite_value
 
+class PresidentsCard(Card):
+    """
+    A class for presidents cards, mainly dictating card comparisons.
+    """
+    def __init__(self, suite, value, game):
+        Card.__init__(self, suite, value)
+        if not isinstance(game, Presidents):
+            raise TypeError('A presidents card must be tied to a presidents game.')
+        self.game = game
+
+    # Because no two cards are equal in a presidents, equality and non-equality
+    # can only be checked between cards from different presidents games or one
+    # from a presidents game and the other not.
+    def diff_game_assert(self, other):
+        try:
+            # If the other card has a game make sure it's not the same one.
+            assert self.game is not other.game, 'Equality can only be checked between cards from a different game.'
+        except AssertionError:
+            raise
+        # If the other card doesn't have a game, an equality check is fine.
+        except AttributeError:
+            return
+
+    def __eq__(self, other):
+        self.diff_game_assert(other)
+        return self.same_card(other)
+
+    def __ne__(self, other):
+        return not self == other    
+    
+    # Comparing presidents cards between two different presidents games should
+    # never happen unless checking for equality or non-equality specifically
+    def same_game_assert(self, other):
+        assert self.game is other.game, 'Only cards from the same game can be compared.'
+
+    def __lt__(self, other):
+        self.same_game_assert(other)
+        # In order to compare a card with another, we need only compare each
+        # card's position in the President's card order. The same follows for
+        # the greater than method.
+        return Presidents.order.index(self) < Presidents.order.index(other)
+
+    def __gt__(self, other):
+        self.same_game_assert(other)
+        return Presidents.order.index(self) > Presidents.order.index(other)
+
+    # Calls to <= and >= should never be made as they don't make sense in the
+    # contexr of presidents
+    def __le__(self, other):
+        raise AssertionError('A <= call was made by a PresidentsCard')
+
+    def __ge__(self, other):
+        raise AssertionError('A >= call was made by a PresidentsCard')
+
 
 class Deck:
     """
-    Class for deck of cards, can be put on a table or removed
-    from a table.
+    A simple class for decks of cards.
     """
     # a deck is a list of Card objects
     def __init__(self, name='Standard', cards=[]):
@@ -90,16 +142,16 @@ class Deck:
                     # ordered from weakest to strongest
                     for j in ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a']]
         else:
-            # all cards in the deck must be Card objects
             for card in cards:
-                assert isinstance(card, Card), 'all cards in a deck must be Card objects'
+                if not isinstance(card, Card):
+                    raise TypeError('All cards in a deck must be Card objects.')
             self.cards = cards
     
     def shuffle(self):
-        rand_shuffle(self.cards)
+        random.shuffle(self.cards)
         print('Deck has been shuffled.')
     
-    # generator that yields each card in the deck
+    # Generator that yields each card in the deck.
     def card_dealer(self):
         for card in self.cards:
             yield card
@@ -110,8 +162,7 @@ class Deck:
 
 class Player:
     """
-    Class for player, can view and play cards at whatever table
-    spot they are at.
+    A general class for card game players.
     """
     def __init__(self, name): #, spot=None, table=None, game=None):
         self.name = name
@@ -365,10 +416,29 @@ class PresidentsPlayer(Player):
         if func:
             return func[0]
 
-        
+
+class Spot:
+    """
+    A class for spots at a table.
+    """
+    def __init__(self, table):
+        self.player = None
+        self.cards = []
+        self.hands = []
+
+class PresidentsSpot:
+    """
+    A class for presidents spots.
+    """
+    def __init__(self, table):
+        if not isinstance(table, PresidentsTable):
+            raise TypeError('Only PresidentsTables can have PresidentsSpots.')
+        Spot.__init__(self, table)
+        self.game
+
 class Table:
     """
-    Where players sit and play card games.
+    Where players sit and play card games; holds instances of the Spot class.
     """
     def __init__(self, name='Flavorless'): #, game=None, deck=None):
         self.name = name
@@ -385,6 +455,8 @@ class Table:
     def add_game(self, game):
         self.game = game
         self.game.table = self
+
+    
     
     @property
     def deck(self):
@@ -526,12 +598,10 @@ class Hand:
     # indexing into Hands allows for comparing cards that are not tied to the same
     # game instance
     def index(self, other):
-        if other in self:
-            for i, card in enumerate(self.cards):
-                if card.same_suite(other) and card.same_value(other):
-                    return i
-        else:
-            raise IndexError('Card is not in hand.')
+        for i, card in enumerate(self.cards):
+            if card.same_suite(other) and card.same_value(other):
+                return i
+        raise IndexError('Card is not in hand.')
 
     def __repr__(self):
         return f'Hand({[card for card in self.cards]})'
@@ -718,10 +788,18 @@ class PresidentsHand(Hand):
     def __repr__(self):
         return f'PresidentsHand({[card for card in self.cards]})'
     
-
-class Presidents:
+class CardGame:
     """
-    Presidents card game class, contains idk.
+    generic card game class
+    """
+    def __repr__(self):
+        'A card game'
+
+
+
+class Presidents(CardGame):
+    """
+    Presidents card game class.
     """
     # 4 suites: clubs, diamonds, hearts, spades
     # ordered from weakest to strongest
@@ -744,8 +822,8 @@ class Presidents:
         self.debug = debug
         # president's card deck, with cards ordered from weakest to strongest
         self.deck = Deck('Presidents',
-                         [Card(j, i, self) for i in self.value_order 
-                                           for j in self.suite_order])
+                         [PresidentsCard(j, i, self) for i in Presidents.value_order 
+                                               for j in Presidents.suite_order])
         # might add ability to start a game with table included
         self.table = None
         self.current_player = None
@@ -782,7 +860,7 @@ class Presidents:
         assert isinstance(self.table.played[-1], PresidentsStart), 'Can only find the 3 of clubs at the beginning of the game.'
         for spot, player in self.table.spots.items():
             # remember, cards are zero-indexed in the backend and database, c2 is the 3 of Clubs
-            if Card('c', '2', self) in self.table.cards[spot]:
+            if Card('c', '2') in self.table.cards[spot]:
                 self.current_player = player
         print(f'{self.current_player.name} has the 3 of Clubs!')
         
@@ -870,15 +948,15 @@ class PresidentsPass:
     def __repr__(self):
         return 'Pass'
 
-@main
-def quick_game(debug=False):
-    print('Welcome to Single Player Command Line Presidents!')
-    t = PresidentsTable()
-    if debug:
-        t.game.debug = True
-    name = input('What is your name? ')
-    print('Who do you want to play presidents with?')
-    other_names = [input('Other Name: '), input('Other Name: '), input('Other Name: ')]
-    for name in [name] + other_names:
-        PresidentsPlayer(name).join_table(t)
-    t.start_game()
+# @main
+# def quick_game(debug=False):
+#     print('Welcome to Single Player Command Line Presidents!')
+#     t = PresidentsTable()
+#     if debug:
+#         t.game.debug = True
+#     name = input('What is your name? ')
+#     print('Who do you want to play presidents with?')
+#     other_names = [input('Other Name: '), input('Other Name: '), input('Other Name: ')]
+#     for name in [name] + other_names:
+#         PresidentsPlayer(name).join_table(t)
+#     t.start_game()
