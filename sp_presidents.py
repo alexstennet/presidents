@@ -267,25 +267,16 @@ class PresidentsPlayer(Player):
             # if the hand includes the 3 of clubs, remove the hand from the player's hands
             # and append it to the list of played cards
             self.force_play_hand(hand_ind, hand_to_play)
-        # current player can play anything that he/she wants if there are either players_left
-        # (which a number) passes on top of the deck or players_left - 1 passes on top of the deck 
         else:
-            if last_played.winning and passes == self.game.players_left:
-                print('huh')
-                self.force_play_hand(hand_ind, hand_to_play)
-            elif last_played.winning:
-                print('ok')
-                assert hand_to_play > last_played, 'This hand cannot beat the last!'
-                self.force_play_hand(hand_ind, hand_to_play)
-            elif passes == self.game.players_left - 1:
-                print('what')
+            if self.can_play_anyhand:
                 self.force_play_hand(hand_ind, hand_to_play)
             else:
-                print('ya')
-                assert hand_to_play > last_played, 'This hand cannot beat the last!'
+                if hand_to_play < last_played:
+                    raise RuntimeError('This hand cannot beat the last.')
                 self.force_play_hand(hand_ind, hand_to_play)
 
     def force_play_hand(self, hand_ind, hand_to_play=None):
+        self.hand_ind_check(hand_ind)
         if not hand_to_play:
             hand_to_play = self.hands[hand_ind]
         self.hands.pop(hand_ind)
@@ -298,6 +289,10 @@ class PresidentsPlayer(Player):
             self.next_player(report=False)
         else:
             self.next_player()
+
+    @property
+    def can_play_anyhand(self):
+        return self.spot.can_play_anyhand
 
     def unhand_hand(self, hand_ind):
         if hand_ind == 'all':
@@ -382,6 +377,7 @@ class PresidentsPlayer(Player):
         if func:
             return func[0]
 
+    
 
 class Spot:
     """
@@ -426,7 +422,7 @@ class PresidentsSpot:
             raise TypeError('Only PresidentsTables can have PresidentsSpots.')
         Spot.__init__(self, table)
         self.position = None
-        self.reserve_time = 60 # will implement later
+        self.reserve_time = 60 # will implement later...
         
     @property
     def has_3_of_clubs(self):
@@ -437,26 +433,20 @@ class PresidentsSpot:
             raise TypeError('Only PresidentsPlayers can hop into PresidentsSpots.')
         Spot.add_player(self, player)
 
+    # I will explain this later...
     @property
     def can_play_anyhand(self):
+        winning_last = self.table.winning_last
         passes = self.table.passes_on_top
-        if self.table.winning_last and passes == self.table.players_left:
-            self.force_play_hand(hand_ind, hand_to_play)
-        elif last_played.winning:
-            print('ok')
-            assert hand_to_play > last_played, 'This hand cannot beat the last!'
-            self.force_play_hand(hand_ind, hand_to_play)
-        elif passes == self.game.players_left - 1:
-            print('what')
-            self.force_play_hand(hand_ind, hand_to_play)
+        players_left = self.table.players_left
+        if winning_last and passes == players_left:
+            return True
+        elif winning_last:
+            return False
+        elif passes == players_left - 1:
+            return True
         else:
-            print('ya')
-            assert hand_to_play > last_played, 'This hand cannot beat the last!'
-            self.force_play_hand(hand_ind, hand_to_play)
-
-    @property
-    def game(self):
-        return self.table.game
+            return False
 
 class Table:
     """
@@ -584,7 +574,7 @@ class PresidentsTable(Table):
     # Returns the number of players who have not exhausted their cards.
     @property
     def players_left(self):
-        return sum([spot.])
+        return sum([not spot.empty_handed for spot in self.spots])
 
 class Hand:
     """
