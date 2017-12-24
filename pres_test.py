@@ -35,8 +35,8 @@ from sp_presidents import *
 
 p0 = Presidents()
 p1 = Presidents()
-c1 = PresidentsCard('s', '1', p0)
-c2 = PresidentsCard('d', '1', p0)
+c1 = PresidentsCard('s', '1')
+c2 = PresidentsCard('d', '1')
 
 # # h = PresidentsHand([Card('d', '3', p),
 # #                     Card('h', '3', p),

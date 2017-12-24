@@ -157,67 +157,11 @@ class Player:
             raise RuntimeError('Player cannot leave a spot if they are not in one.')
         self.spot.remove_player()
 
-    def create_hand(self, *cards):
-        # *cards should be comma separated UI suite_value strings (i.e the ones
-        # that are NOT zero-indexed) of the cards desired in the hand.
-        if not self.spot:
-            raise RuntimeError('Player must be in a spot to create a hand.')
-        # Convert the UI suite_value strings to backend/database suite_value
-        # strings; this will KeyError if the the card value given is not valid.
-        cards = [card[0]+self.game.UI_to_BEDB_dict[card[1:]] for card in cards]
-        # Convert suite_value strings to Card objects; this will ValueError if
-        # if the card suite given is not valid.
-        cards_objs = map(lambda i, j: Card(i, j), cards)
-        # Check that the player has the cards they want to make a hand using.
-        for card in cards_objs:
-            if card not in self.cards:
-                raise RuntimeError('The player does not have at least one of these cards.')
-        hand_indeces = []
-        # use suite_value's of each card to check if the player is creating a
-        # hand using cards that they actually have
-        for card in cards:
-            assert card in suites_values, 'Card must be in your cards'
-            hand_indeces.append(suites_values.index(card))
-        # step through a reversed sorted version of the indeces so smaller
-        # indeces remain intact while popping larger ones
-        desired_cards = []
-        for i in sorted(hand_indeces, reverse=True):
-            desired_cards.append(self.cards.pop(i))
-        # create a hand using the type of hand that the game provides
-        try:
-            desired_hand = self.game.hand(desired_cards)
-        # if the creation of the hand fails, append the cards back into the player's cards
-        except:
-            for card in desired_cards:
-                self.cards.append(card)
-                raise           
-        # if the hand is successfully created, add it to the player's hands
-        self.hands.append(desired_hand)
-        
-    def remove_from_hand(self, hand_ind, to_remove):
-        hand_ind = int(hand_ind)
-        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
-        return
+    def create_hand(self):
+        raise NotImplementedError('The create_hand method must be provided by the subclass of the Player class corresponding to the game being played.')
 
-    def add_to_hand(self, hand_ind, to_add):
-        hand_ind = int(hand_ind)
-        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
-        return
-
-    def unhand_hand(self, hand_ind):
-        hand_ind = int(hand_ind)
-        assert len(self.hands) > hand_ind, 'There are not as many hands as you think.'
-        popped_hand = self.hands.pop(hand_ind)
-        while popped_hand.cards:
-            self.cards.append(popped_hand.cards.pop())
-     
-    def unhand_all_hands(self):
-        for i in reversed(range(len(self.hands))):
-            self.unhand_hand(i)
-
-    def validate_hands(self):
-        for hand in self.hands:
-            hand.validate()
+    def play_hand(self):
+        raise NotImplementedError('The create_hand method must be provided by the subclass of the Player class corresponding to the game being played.')
 
     @property
     def hands(self):
@@ -265,37 +209,57 @@ class PresidentsPlayer(Player):
         self.done = False
     
     def create_hand(self, *cards):
-        
-        Player.create_hand(self, *cards)
-        # check if the hand just added to hands is a valid president's hand, if not, unhand it
-        just_created = self.hands[-1]
-        just_created.validate()
-        if not just_created.valid:
-            self.unhand_hand(-1)
+        # *cards should be comma separated UI suite_value strings (i.e the ones
+        # that are NOT zero-indexed) of the cards desired in the hand.
+        if not self.spot:
+            raise RuntimeError('Player must be in a spot to create a hand.')
+        # Convert the UI suite_value strings to backend/database suite_value
+        # strings; this will KeyError if the the card value given is not valid.
+        try:
+            cards = [card[0]+self.game.UI_to_BEDB_dict[card[1:]] for card in cards]
+        except KeyError:
+            raise ValueError(f"{card[1:]} is not a valid card value; they are '2'-'10', 'j', 'q', 'k', 'a'.")
+        # Convert suite_value strings to Card objects; this will ValueError if
+        # if the card suite given is not valid; error message is included.
+        cards_objs = map(lambda i, j: Card(i, j), cards)
+        # Check that the player has the cards they want to make a hand using.
+        desired_cards = []
+        for card in cards_objs:
+            if card not in self.cards:
+                raise RuntimeError('The player does not have at least one of these cards.')
+            else:
+                desired_cards.append(card)
+        desired_hand = PresidentsHand(desired_cards)
+        if len(just_created) == 1:
+            # No need to announce that a single is a valid hand.
+            desired_hand.validate(print_message=False)
+        else:
+            desired_hand.validate(print_message=True)
+        # Only valid hands should be added to the player('s spot)'s hands
+        if desired_hand.valid:
+            self.hands.append(desired_hand)
         
     def play_hand(self, hand_ind):
-        assert self.game, 'Must be playing a game to play a hand.'
-        assert self.table, 'Must be at a table to play cards.'
-        # allow hands to be single card shorthand strings and do the hand building automatically
-        # check if hand_ind is a string with a suite shorthand for the first letter
+        if not self.spot:
+            raise RuntimeError('Player must be in a spot to play a hand.')
+        # Allow hands to be single card, UI suite_value strings and do the hand
+        # building automatically
         if isinstance(hand_ind, str):
-            if hand_ind[0] in self.game.suite_order:
+            # Check if hand_ind is a string with a valid suite for the first letter
+            if hand_ind[0] in Presidents.suite_order:
                 self.create_hand(hand_ind)
-            # after creating the single card hand, try to play it
-            try:
-                self.play_hand(-1)
-            # if it can't be played, unhand the created hand
-            except:
-                self.unhand_hand(-1)
-                raise
-            return
-        hand_ind = int(hand_ind)
-        assert len(self.hands) > hand_ind, 'There are not as many hands as you think!'
+                # After creating the single card hand, try to play it.
+                try:
+                    self.play_hand(-1)
+                # If it can't be played, unhand the created hand.
+                except:
+                    self.unhand_hand(-1)
+                    raise # not sure about this raise
+                return
+        self.hand_ind_check(hand_ind)
         hand_to_play = self.hands[hand_ind]
         # if the hand wanting to played is not valid, attempt to validate it
-        if not hand_to_play.valid:
-            hand_to_play.validate()            
-            assert hand_to_play.valid, 'Can only play valid hands.'
+        assert hand_to_play.valid, 'Invalid hands should not be able to get to this point.'
         last_played = self.table.last_played
         passes = self.table.passes_on_top
         if isinstance(last_played, PresidentsStart):
@@ -334,6 +298,25 @@ class PresidentsPlayer(Player):
             self.next_player(report=False)
         else:
             self.next_player()
+
+    def unhand_hand(self, hand_ind):
+        if hand_ind == 'all':
+            self.unhand_all_hands()
+            return
+        self.hand_ind_check(hand_ind)
+        self.hands.pop(hand_ind)
+        
+    def unhand_all_hands(self):
+        for _ in range(len(self.hands)):
+            self.hands.pop()
+
+    def hand_ind_check(self, hand_ind):
+        try:
+            hand_ind = int(hand_ind)
+        except:
+            raise ValueError('Desired hand index must be an integer.')
+        if len(self.hands) <= hand_ind:
+            raise ValueError('There are not as many hands as you think.')
     
     def do_things_if_done(self):
         if self.all == []:
@@ -430,6 +413,10 @@ class Spot:
         self.player.spot = None
         self.player = None
 
+    @property
+    def empty_handed(self):
+        return self.all == []
+
 class PresidentsSpot:
     """
     A class for presidents spots.
@@ -445,15 +432,31 @@ class PresidentsSpot:
     def has_3_of_clubs(self):
         return Card('c', '2') in self.cards
 
-    # Return whether a player has finished a round (played all their cards).
-    @property
-    def done(self):
-        return self.all == []
-
     def add_player(self, player):
         if not isinstance(player, PresidentsPlayer):
             raise TypeError('Only PresidentsPlayers can hop into PresidentsSpots.')
         Spot.add_player(self, player)
+
+    @property
+    def can_play_anyhand(self):
+        passes = self.table.passes_on_top
+        if self.table.winning_last and passes == self.table.players_left:
+            self.force_play_hand(hand_ind, hand_to_play)
+        elif last_played.winning:
+            print('ok')
+            assert hand_to_play > last_played, 'This hand cannot beat the last!'
+            self.force_play_hand(hand_ind, hand_to_play)
+        elif passes == self.game.players_left - 1:
+            print('what')
+            self.force_play_hand(hand_ind, hand_to_play)
+        else:
+            print('ya')
+            assert hand_to_play > last_played, 'This hand cannot beat the last!'
+            self.force_play_hand(hand_ind, hand_to_play)
+
+    @property
+    def game(self):
+        return self.table.game
 
 class Table:
     """
@@ -572,7 +575,16 @@ class PresidentsTable(Table):
             return self.played[-3]
         elif passes == 3:
             return self.played[-4]
-        
+
+    # Returns whether the last played hand was a winning hand.
+    @property
+    def winning_last(self):
+        return self.last_played.winning
+
+    # Returns the number of players who have not exhausted their cards.
+    @property
+    def players_left(self):
+        return sum([spot.])
 
 class Hand:
     """
@@ -631,7 +643,7 @@ class PresidentsHand(Hand):
     # validate and label presidents hand
     def validate(self, print_message=True):
         if self.valid:
-            pass  
+            pass
         elif len(self) == 1:
             self.valid = True
             self.type = 'single'
@@ -809,28 +821,23 @@ class Presidents(CardGame):
     # Ordered from weakest to strongest.
     # Values are zero-indexed, e.g. 1 is a 2, 2 is a 3, etc.; note that this is
     # only true in the application backend and database, all UI versions have
-    # 1-1 card label e.g. 3 of CLubs is 'c2' in the backend and database but is
-    # 'c3' in all UI.
+    # 1-1 card labels e.g. 3 of CLubs is 'c2' in the backend and database but
+    # is 'c3' in all UI.
     value_order = ['2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a', '1']
     # All cards arranged in order.
-    order = 
-        [PresidentsCard(j, i) 
-            for i in value_order
-            # super odd error here: putting suite_order results in a name error
-            # seems to break after the first for in the list comp, not sure if 
-            # intended ???
-            for j in ['c', 'd', 'h', 's']] 
-    hand = PresidentsHand
-    
+    # super odd error here: putting suite_order results in a name error seems
+    # to break after the first for in the list comp, not sure if intended ???
+    order = [PresidentsCard(j, i) for i in value_order for j in ['c', 'd', 'h', 's']]
     
     def __init__(self, debug=False):
-        self.debug = debug
-        # president's card deck, with cards ordered from weakest to strongest
+        self.rounds = 10
+        # Using instance's order so class order will not be affected by shuffle.
         self.deck = Deck(self.order)
-        # might add ability to start a game with table included
         self.table = None
         self.current_player = None
-        self.positions = []
+
+    def play_round(self):
+        return
 
     @property
     def played(self):
@@ -872,10 +879,8 @@ class Presidents(CardGame):
 
     def setup_table(self):
         self.table.played.append(PresidentsStart())
-        # debugging allows for the assignment of custom cards to each player
-        if not self.debug:
-            self.table.shuffle_deck()
-            self.table.deal_cards()
+        self.table.shuffle_deck()
+        self.table.deal_cards()
 
     def game_loop(self):
         while True:
