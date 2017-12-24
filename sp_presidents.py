@@ -434,7 +434,10 @@ class PresidentsSpot:
         if not isinstance(table, PresidentsTable):
             raise TypeError('Only PresidentsTables can have PresidentsSpots.')
         Spot.__init__(self, table)
-        self.game
+        
+    @property
+    def has_3_of_clubs(self):
+        return Card('c', '2') in self.cards
 
 class Table:
     """
@@ -587,13 +590,9 @@ class Hand:
     def __add__(self, other):
         return self.__class__(self.cards + other.cards)
 
-    # method to check that a hand contains
+    # method to check that a hand contains a card
     def __contains__(self, other):
-        for card in self.cards:
-            if card.same_suite(other) and card.same_value(other):
-                return True
-        else:
-            return False
+        return other in self.cards
     
     # indexing into Hands allows for comparing cards that are not tied to the same
     # game instance
