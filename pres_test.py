@@ -44,11 +44,11 @@ c2 = PresidentsCard('d', '1', p0)
 # #                     Card('c', '4', p),
 # #                     Card('d', '4', p)])
 
-j = PresidentsHand([PresidentsCard('c', '1', p0),
-                    PresidentsCard('s', '1', p0),
-                    PresidentsCard('c', '7', p0),
-                    PresidentsCard('h', '7', p0),
-                    PresidentsCard('s', '7', p0)])
+j = PresidentsHand([PresidentsCard('c', '1'),
+                    PresidentsCard('s', '1'),
+                    PresidentsCard('c', '7'),
+                    PresidentsCard('h', '7'),
+                    PresidentsCard('s', '7')])
 
 # k = PresidentsHand([Card('c', '3', p0),
 #                     Card('d', '3', p0),
