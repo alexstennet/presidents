@@ -949,6 +949,17 @@ class Presidents(CardGame):
             # except Exception as err:
             #     print(f"The following error might not make sense, but you might be able to use it to tell what's wrong!\n{err}")
 
+    def setup_round(self, round_num):
+        self.table.clear_cards()
+        self.table.clear_played()
+        self.table.played.append(PresidentsStart())
+        self.table.shuffle_deck()
+        self.table.deal_cards()
+        self.find_3_of_clubs()
+        if round_num > 1:
+            self.handle_card_swaps()
+        self.report_turn()
+    
     # update tells everyone that a hand has been played, if the hand played was
     # a winning hand (last card that the player had), the hand is labelled as
     # such and the position of the player is announced, finally the next player
@@ -1032,15 +1043,16 @@ class PresidentsPass:
     def __repr__(self):
         return 'Pass'
 
-# @main
-# def quick_game(debug=False):
-#     print('Welcome to Single Player Command Line Presidents!')
-#     t = PresidentsTable()
-#     if debug:
-#         t.game.debug = True
-#     name = input('What is your name? ')
-#     print('Who do you want to play presidents with?')
-#     other_names = [input('Other Name: '), input('Other Name: '), input('Other Name: ')]
-#     for name in [name] + other_names:
-#         PresidentsPlayer(name).join_table(t)
-#     t.start_game()
+
+@main
+def quick_game(debug=False):
+    print('Welcome to Single Player Command Line Presidents!')
+    t = PresidentsTable()
+    if debug:
+        t.game.debug = True
+    name = input('What is your name? ')
+    print('Who do you want to play presidents with?')
+    other_names = [input('Other Name: '), input('Other Name: '), input('Other Name: ')]
+    for name in [name] + other_names:
+        PresidentsPlayer(name).join_table(t)
+    t.start_game()
