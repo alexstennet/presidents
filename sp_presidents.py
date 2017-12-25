@@ -900,32 +900,10 @@ class Presidents(CardGame):
         if not all(self.table.player):
             raise RuntimeError('Presidents requires exactly 4 players.')
         print('\nWelcome to Presidents!')
-
         for i in range(1,self.rounds+1):
             self.setup_round(i)    
             self.play_round()
-        
-        self.find_3_of_clubs()
-        self.next_player_gen = self.table.next_player_gen()
-        # cycle through the next player generator until hitting the player identified
-        # to have the 3 of Clubs from above
-        current_gen_player = next(self.next_player_gen)
-        while current_gen_player is not self.current_player:
-            current_gen_player = next(self.next_player_gen)
-        self.report_turn()
-        self.game_loop()
-
-   
-
-    def setup_round(self, round_num):
-        self.table.clear_cards()
-        self.table.clear_played()
-        self.table.played.append(PresidentsStart())
-        self.table.shuffle_deck()
-        self.table.deal_cards()
-        self.find_3_of_clubs()
-        if round_num > 1:
-            self.handle_card_swaps()
+        print('\nTHANKS FOR PLAYING!')
 
     # there should be a separate function for determining the next spot that
     # can play a hand (the next spot that is not done), but it should be in
@@ -933,7 +911,6 @@ class Presidents(CardGame):
     def play_round(self):
         while True:
             try:
-                playing = self.current_spot
                 pres_in = input('pres> ')
                 pres_in_tokens = pres_in.split()
                 # all shortcuts will be methods of the Player class or one of its subclasses
@@ -954,18 +931,12 @@ class Presidents(CardGame):
                     # if self.debug:
                     #     raise
                     raise
-                
-                if self.current_spot is not playing:
-
-
-                if self.players_left == 1:
+                if self.table.players_left == 1:
+                    self.assign_position()
                     self.announce_position()
                     print(f'\nThe round is over! The results are as follows:')
-                    print(f'President: {self.positions[0]}')
-                    print(f'Vice President: {self.positions[1]}')
-                    print(f'Vice Asshole: {self.positions[2]}')
-                    print(f'Asshole: {self.positions[3]}')
-                    print('\nTHANKS FOR PLAYING!')
+                    for spot in self.table.spots:
+                        print(f'{spot.position}: {spot.player}')
                     break
             except KeyboardInterrupt:
                 print('\n\nKeyboardInterrupt')
@@ -994,17 +965,18 @@ class Presidents(CardGame):
             last.winning = True
             self.assign_position()
             self.announce_position()
+        self.next_spot_with_cards()
+        self.report_turn()
         
-    
+    # Iterates the instance spot generator until it hits the first spot with cards.
     def next_spot_with_cards(self):
-        spot_cycler = self.table.spot_cycler()
-        spot = next(spot_cycler)
-        while not spot.empty_handed:
-            spot = next(spot_cycler)
-        yield spot
+        # First iterates once to go to the next spot at a minimum.
+        self.current_spot = next(self.spot_cycler)
+        while self.current_spot.empty_handed:
+            self.current_spot = next(self.spot_cycler)
 
     # Finds the 3 of Clubs, sets the current spot to the one with the 3 of
-    # clubs and iterates the next_spot generator to the current player.
+    # clubs and creates and iterates the next_spot generator to the current player.
     def find_3_of_clubs(self):
         assert isinstance(self.table.last_played, PresidentsStart), 'Can only find the 3 of clubs at the beginning of the game.'
         for spot in self.spots:
@@ -1013,11 +985,13 @@ class Presidents(CardGame):
                 self.current_spot = spot
                 break
         print(f'{self.current_spot.player} has the 3 of Clubs!')
-        next_spot_with_cards = self.next_spot_with_cards()
-        while next_spot_with_cards is not self.current_spot:
-            next()
+        self.spot_cycler = self.table.spot_cycler()
+        curr_spot = next(self.spot_cycler)
+        # After this while loop, the instance spot cycler is on the spot with
+        # the 3 of clubs
+        while curr_spot is not self.current_spot:
+            curr_spot = next(self.spot_cycler)
 
-        
     def report_turn(self):
         print(f"It's your turn, {self.current_spot.player}! Enter 'help' to see your options!")
 
