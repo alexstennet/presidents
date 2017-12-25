@@ -76,6 +76,7 @@ class Card:
     def __str__(self):
         return self.suite_value
 
+
 class PresidentsCard(Card):
     """
     A class for presidents cards, mainly dictating card comparisons.
@@ -87,7 +88,6 @@ class PresidentsCard(Card):
         return Presidents.order.index(self) < Presidents.order.index(other)
 
     def __gt__(self, other):
-        self.same_game_assert(other)
         return Presidents.order.index(self) > Presidents.order.index(other)
 
     # Calls to <= and >= should never be made as they don't make sense in the
@@ -164,6 +164,12 @@ class Player:
         raise NotImplementedError('The create_hand method must be provided by the subclass of the Player class corresponding to the game being played.')
 
     @property
+    def table(self):
+        if not self.spot:
+            raise RuntimeError('Players must be in a spot to access table.')
+        return self.spot.table
+
+    @property
     def hands(self):
         if not self.spot:
             raise RuntimeError('Players must be in a spot to access hands.')
@@ -182,32 +188,32 @@ class Player:
         return self.spot.all
 
     def __repr__(self):
-        return self.name
+        return f'Player({self.name})'
 
 
 class PresidentsPlayer(Player):
     """
-    class for presidents players
+    class for presidents players.
     """
+    func_dict =\
+    {   
+    'view': (self.view,
+        "'view cards': show cards\n            'view hands': show hands\n            'view all': show cards and hands\n            'view last': show last card played"),
+    'hand': (self.create_hand,
+        "use shorthand versions of card names separated by spaces to create a hand,\n            e.g. 'hand s2 h2 d2 c2 sa' creates a 2 bomb with an Ace of Spades"),
+    'unhand': (self.unhand_hand,
+        "deconstruct the hand at index i\n            i.e. 'unhand i' puts all the individual cards which made up the i-th hand back in your cards"),
+    'play': (self.play_hand, 
+        "play the hand at index i\n            i.e. 'play i' plays the i-th hand in hands\n            view hands and corresponding index with 'view hands'"),
+    'pass': (self.pass_turn,
+        'pass on the current hand being played on'),
+    'help': (self.help,
+        'list the command options and short descriptions of each'),
+    }
+    # this is useless right now but might add things later
     def __init__(self, name):
         Player.__init__(self, name)
-        self.func_dict =\
-        {   
-            'view': (self.view,
-                "'view cards': show cards\n            'view hands': show hands\n            'view all': show cards and hands\n            'view last': show last card played"),
-            'hand': (self.create_hand,
-                "use shorthand versions of card names separated by spaces to create a hand,\n            e.g. 'hand s2 h2 d2 c2 sa' creates a 2 bomb with an Ace of Spades"),
-            'unhand': (self.unhand_hand,
-                "deconstruct the hand at index i\n            i.e. 'unhand i' puts all the individual cards which made up the i-th hand back in your cards"),
-            'play': (self.play_hand, 
-                "play the hand at index i\n            i.e. 'play i' plays the i-th hand in hands\n            view hands and corresponding index with 'view hands'"),
-            'pass': (self.pass_turn,
-                'pass on the current hand being played on'),
-            'help': (self.help,
-                'list the command options and short descriptions of each'),
-        }
-        self.done = False
-    
+        
     def create_hand(self, *cards):
         # *cards should be comma separated UI suite_value strings (i.e the ones
         # that are NOT zero-indexed) of the cards desired in the hand.
@@ -216,12 +222,14 @@ class PresidentsPlayer(Player):
         # Convert the UI suite_value strings to backend/database suite_value
         # strings; this will KeyError if the the card value given is not valid.
         try:
-            cards = [card[0]+self.game.UI_to_BEDB_dict[card[1:]] for card in cards]
+            cards = [card[0]+PresidentsCard.UI_to_BEDB_dict[card[1:]] for card in cards]
         except KeyError:
             raise ValueError(f"{card[1:]} is not a valid card value; they are '2'-'10', 'j', 'q', 'k', 'a'.")
         # Convert suite_value strings to Card objects; this will ValueError if
         # if the card suite given is not valid; error message is included.
-        cards_objs = map(lambda i, j: Card(i, j), cards)
+        cards_objs = []
+        for suite, value in cards:
+            cards_objs.append(PresidentsCard(suite, value))
         # Check that the player has the cards they want to make a hand using.
         desired_cards = []
         for card in cards_objs:
@@ -230,7 +238,7 @@ class PresidentsPlayer(Player):
             else:
                 desired_cards.append(card)
         desired_hand = PresidentsHand(desired_cards)
-        if len(just_created) == 1:
+        if len(desired_hand) == 1:
             # No need to announce that a single is a valid hand.
             desired_hand.validate(print_message=False)
         else:
@@ -256,16 +264,15 @@ class PresidentsPlayer(Player):
                     self.unhand_hand(-1)
                     raise # not sure about this raise
                 return
-        self.hand_ind_check(hand_ind)
+        self.hand_ind_check()
         hand_to_play = self.hands[hand_ind]
         # if the hand wanting to played is not valid, attempt to validate it
         assert hand_to_play.valid, 'Invalid hands should not be able to get to this point.'
         last_played = self.table.last_played
         passes = self.table.passes_on_top
         if isinstance(last_played, PresidentsStart):
-            assert Card('c','2') in hand_to_play, 'The starting hand must contain the 3 of Clubs.'
-            # if the hand includes the 3 of clubs, remove the hand from the player's hands
-            # and append it to the list of played cards
+            if not Card('c','2') in hand_to_play:
+                raise RuntimeError('The starting hand must contain the 3 of Clubs.')
             self.force_play_hand(hand_ind, hand_to_play)
         else:
             if self.can_play_anyhand:
@@ -276,36 +283,39 @@ class PresidentsPlayer(Player):
                 self.force_play_hand(hand_ind, hand_to_play)
 
     def force_play_hand(self, hand_ind, hand_to_play=None):
-        self.hand_ind_check(hand_ind)
+        self.hand_ind_check()
         if not hand_to_play:
             hand_to_play = self.hands[hand_ind]
-        self.hands.pop(hand_ind)
+        self.spot.pop_intersecting(hand_to_play)
         self.table.played.append(hand_to_play)
         print(f'{self} played a {hand_to_play.type}: {sorted(hand_to_play)}')
         # if current player has no more hands or cards remaining, display his/her position
         # for next round and decrement the number of players remaining
-        self.do_things_if_done()
-        if self.game.players_left == 1:
-            self.next_player(report=False)
-        else:
-            self.next_player()
+        self.alert_table()
+
+    def alert_table(self):
+
 
     @property
     def can_play_anyhand(self):
         return self.spot.can_play_anyhand
 
     def unhand_hand(self, hand_ind):
+        if not self.spot:
+            raise RuntimeError('Player must be in a spot to unhand a hand.')
         if hand_ind == 'all':
             self.unhand_all_hands()
             return
-        self.hand_ind_check(hand_ind)
+        self.hand_ind_check()
         self.hands.pop(hand_ind)
         
     def unhand_all_hands(self):
-        for _ in range(len(self.hands)):
-            self.hands.pop()
+        if not self.spot:
+            raise RuntimeError('Player must be in a spot to unhand all hands.')
+        self.hands = []
 
-    def hand_ind_check(self, hand_ind):
+    def hand_ind_check(self):
+        nonlocal hand_ind
         try:
             hand_ind = int(hand_ind)
         except:
@@ -313,11 +323,13 @@ class PresidentsPlayer(Player):
         if len(self.hands) <= hand_ind:
             raise ValueError('There are not as many hands as you think.')
     
+    @property
+    def empty_handed:
+        return self.spot.empty_handed
+
     def do_things_if_done(self):
-        if self.all == []:
-            self.done = True
+        if self.empty_handed:
             self.game.announce_position()
-            self.game.players_left -= 1
             self.table.last_played.winning = True
     
     def next_player(self, report=True):
@@ -413,7 +425,7 @@ class Spot:
     def empty_handed(self):
         return self.all == []
 
-class PresidentsSpot:
+class PresidentsSpot(Spot):
     """
     A class for presidents spots.
     """
@@ -448,14 +460,22 @@ class PresidentsSpot:
         else:
             return False
 
+    # Pops all cards and hands with any intersection with the hand being played.
+    def pop_intersecting(hand_to_play):
+        for hand_card in hand_to_play:
+            # Remove all hands containing any card in the hand being played
+            self.hands[:] = [hand for hand in self.hands if hand_card not in hand]
+            self.cards.remove(card)        
+
+
 class Table:
     """
     Where players sit and play card games; holds instances of the Spot class.
     """
-    def __init__(self, num_spots=4, spot=Spot, name='Flavorless'):
+    def __init__(self, name='Flavorless', num_spots=4, spot=Spot):
         self.spots = []
         for _ in range(num_spots):
-            self.spots.add_spot(spot(table=self))
+            self.add_spot(spot(table=self))
         self.name = name
         self.game = None
         self.played = []
@@ -525,7 +545,7 @@ class Table:
 
     @property
     def players(self):
-        return self.spots.values()
+        return [spot.player for spot in self.spots]
 
     def __repr__(self):
         return f'{self.name} Table'
@@ -535,8 +555,8 @@ class PresidentsTable(Table):
     """
     class for a table that is already set up for presidents
     """
-    def __init__(self, num_spots=4, spot=PresidentsSpot, name='Presidents'):
-        Table.__init__(self, name)
+    def __init__(self, name='Presidents'):
+        Table.__init__(self, name, num_spots=4, spot=PresidentsSpot)
         self.add_game(Presidents())
 
     def add_player(self, player):
@@ -576,6 +596,11 @@ class PresidentsTable(Table):
     def players_left(self):
         return sum([not spot.empty_handed for spot in self.spots])
 
+    # still abstract: tells the game that something has changed or has been
+    # updated so the game can then figure out what has happened and act
+    # accordingly
+    def alert_game(self)
+
 class Hand:
     """
     Simple class for card hands.
@@ -590,12 +615,15 @@ class Hand:
     # Allows indexing and slicing into Hands
     def __getitem__(self, key):
         cards = self.cards[key]
-        if cards == []:
-            raise RuntimeError('invalid index')
         # Returns individual card if not slicing
-        if not isinstance(cards, list):
+        if isinstance(cards, Card):
             return cards
-        return self.__class__(cards)
+        elif isinstance(cards, list):
+            if cards == []:
+                raise RuntimeError('invalid index')
+            return self.__class__(cards)
+        else:
+            raise AssertionError(f'Impossible type ({type(cards)}) returned when indexing/slicing.')
 
     def __len__(self):
         return len(self.cards)
@@ -614,7 +642,24 @@ class Hand:
     # enumerate all card combinations/permutations in order for the Hand class to 
     # then interpret, and even then, I'm not sure how it would handle comparison
     # rules, e.g. comparing hands of different sizes
-    
+    def __lt__(self, other):
+        raise NotImplementedError('The < method must be provided by the subclass of the Hand class corresponding to the game being played.')
+
+    def __le__(self, other):
+        raise NotImplementedError('The <= method must be provided by the subclass of the Hand class corresponding to the game being played.')
+
+    def __eq__(self, other):
+        raise NotImplementedError('The == method must be provided by the subclass of the Hand class corresponding to the game being played.')
+
+    def __ne__(self, other):
+        raise NotImplementedError('The != method must be provided by the subclass of the Hand class corresponding to the game being played.')
+
+    def __ge__(self, other):
+        raise NotImplementedError('The >= method must be provided by the subclass of the Hand class corresponding to the game being played.')
+
+    def __gt__(self, other):
+        raise NotImplementedError('The > method must be provided by the subclass of the Hand class corresponding to the game being played.')
+
     
 class PresidentsHand(Hand):
     """
@@ -639,53 +684,57 @@ class PresidentsHand(Hand):
             self.type = 'single'
             return
         elif len(self) == 2:
-            if self.is_double():
+            if self.is_double:
                 self.valid = True
                 self.type = 'double'
         elif len(self) == 3:
-            if self.is_triple():
+            if self.is_triple:
                 self.valid = True
                 self.type = 'triple'
         elif len(self) == 4:
             # whether or not we implement quads is still up for debate
-            # if self.is_quad():
+            # if self.is_quad:
             #     self.valid = True
             #     self.type = 'quad'
             pass
         elif len(self) == 5:
-            if self.is_bomb():
+            if self.is_bomb:
                 self.valid = True
                 self.type = 'bomb'
-            elif self.is_fullhouse():
+            elif self.is_fullhouse:
                 self.valid = True
                 self.type = 'fullhouse'
-            elif self.is_straight():
+            elif self.is_straight:
                 self.valid = True
                 self.type = 'straight'
         if print_message:
             self.validation_message()
 
+    @property
     def is_double(self):
         assert len(self) == 2, 'Doubles consist of exactly 2 cards.'
         # if both cards have the same value, the hand is a double
         return self[0].same_value(self[1])
 
+    @property
     def is_triple(self):
         assert len(self) == 3, 'Triples consist of exactly 3 cards.'
         # if the first two cards form a double and last two cards form a
         # double, the hand is triple
-        return self[0:2].is_double() and self[1:3].is_double()
+        return self[0:2].is_double and self[1:3].is_double
 
     # how quads are governed is still a hot topic of debate: in our regular play they
     # were always played with an extra card to make a bomb that beats everything except
     # higher bombs but how exactly should quads work if we don't really have a sample of 
-    # people even using them because of the exsitence of bombs?    
+    # people even using them because of the exsitence of bombs? 
+    @property   
     def is_quad(self):
         assert len(self) == 4, 'Quads consist of exactly 4 cards.'
         # if the first three cards form a triple and the last two cards form a
         # double, the hand can be a quad
-        return self[0:3].is_triple() and self[2:4].is_double()
+        return self[0:3].is_triple and self[2:4].is_double
 
+    @property
     def is_fullhouse(self):
         assert len(self) == 5, 'Fullhouses consist of exactly 5 cards.'
         # sort the cards by value and create a hand using them
@@ -694,7 +743,7 @@ class PresidentsHand(Hand):
         # three cards will be a triple if a triple exists
         triple_exists = False
         for i in range(3):
-            if sorted_hand[i:i+3].is_triple():
+            if sorted_hand[i:i+3].is_triple:
                 triple_exists = True
                 # break to store i as starting index for triple
                 break
@@ -708,14 +757,15 @@ class PresidentsHand(Hand):
             i0, i1 = remaining_indeces
             # create a hand using the cards at the remaining indeces
             remaining_hand = PresidentsHand([sorted_hand[i0], sorted_hand[i1]])
-            if remaining_hand.is_double():
+            if remaining_hand.is_double:
                 # save the triple for fullhouse comparisons
-                self.triple = PresidentsHand(sorted_hand[i:i+3])
+                self.triple = sorted_hand[i:i+3]
                 self.triple.validate(print_message=False)
                 return True
             else:
                 return False
 
+    @property
     def is_straight(self):
         assert len(self) == 5, 'straights consist of exactly 5 cards'
         # we won't be using any Hand methods to compare cards so let's simply
@@ -732,6 +782,7 @@ class PresidentsHand(Hand):
                 return False
         return True
         
+    @property
     def is_bomb(self):
         assert len(self) == 5, 'bombs consist of exactly 5 cards'
         # sort the cards by value and create a hand using them
@@ -740,10 +791,10 @@ class PresidentsHand(Hand):
         # four cards being a quad will mean a bomb
         first_four = sorted_hand[0:4]
         last_four = sorted_hand[1:5]
-        if first_four.is_quad():
+        if first_four.is_quad:
             self.bomb_card = max(first_four)
             return True
-        elif last_four.is_quad():
+        elif last_four.is_quad:
             self.bomb_card = max(last_four)
             return True
         else:
@@ -755,20 +806,19 @@ class PresidentsHand(Hand):
         else:
             print(f'{sorted(self)} is not a valid Presidents hand.')
 
-    def comparison_assert(self, other):
-        assert self.game is other.game, 'This requires both hands to be tied to the same game instance.'
-        assert self.valid and other.valid, 'This requires both hands to be valid.'
-        assert self.type == other.type, f"You can't play a {self.type} on a {other.type}!"
-
-    # PresidentsHands can never be equal to each other
+    def comparison_check(self, other):
+        if not (self.valid and other.valid):
+            raise AssertionError('Only valid hands can be compared.')
+        if not self.type == other.type:
+            raise ValueError(f"You can't play a {self.type} on a {other.type}!")
 
     def __lt__(self, other):
-        # trivial bomb checks
+        # Checking is a bomb is < to a non-bomb is trivial.
         if self.type == 'bomb' and other.type != 'bomb':
             return False
         if self.type != 'bomb' and other.type == 'bomb':
             return True
-        self.comparison_assert(other)
+        self.comparison_check(other)
         if self.type == 'fullhouse':
             return self.triple < other.triple
         if self.type == 'bomb':
@@ -776,17 +826,32 @@ class PresidentsHand(Hand):
         return max([card for card in self.cards]) < max([card for card in other.cards])
 
     def __gt__(self, other):
-        # trivial bomb checks
+        # Checking is a bomb is > to a non-bomb is trivial.
         if self.type == 'bomb' and other.type != 'bomb':
             return True
         if self.type != 'bomb' and other.type == 'bomb':
             return False
-        self.comparison_assert(other)
+        self.comparison_check(other)
         if self.type == 'fullhouse':
             return self.triple > other.triple
         if self.type == 'bomb':
             return self.bomb_card > other.bomb_card
         return max([card for card in self.cards]) > max([card for card in other.cards])
+
+    # PresidentsHands can never be equal to each other so if any of these calls
+    # occur, there is a bug.
+    
+    def __le__(self, other):
+        raise AssertionError('A <= call was made by a PresidentsHand.')
+
+    def __eq__(self, other):
+        raise AssertionError('A == call was made by a PresidentsHand.')
+
+    def __ne__(self, other):
+        raise AssertionError('A != call was made by a PresidentsHand.')
+
+    def __ge__(self, other):
+        raise AssertionError('A >= call was made by a PresidentsHand.')
 
     def __repr__(self):
         return f'PresidentsHand({[card for card in self.cards]})'
