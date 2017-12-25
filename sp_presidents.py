@@ -18,8 +18,8 @@ class Card:
                   '7': '8', '8': '9', '9': '10', 'j': 'Jack', 'q': 'Queen',
                   'k': 'King', 'a': 'Ace'}
     UI_to_BEDB_dict = {'2': '1', '3': '2', '4': '3', '5': '4', '6': '5',
-                          '7': '6', '8': '7', '9': '8', '10': '9', 'j': 'j',
-                          'q': 'q', 'k': 'k', 'a': 'a'}
+                       '7': '6', '8': '7', '9': '8', '10': '9', 'j': 'j',
+                       'q': 'q', 'k': 'k', 'a': 'a'}
 
     def __init__(self, suite, value):
         if not isinstance(suite, str):
@@ -272,7 +272,7 @@ class PresidentsPlayer(Player):
         passes = self.table.passes_on_top
         if isinstance(last_played, PresidentsStart):
             if not Card('c','2') in hand_to_play:
-                raise RuntimeError('The starting hand must contain the 3 of Clubs.')
+                raise RuntimeError('The starting hand must contain the 3 of Clubs!')
             self.force_play_hand(hand_ind, hand_to_play)
         else:
             if self.can_play_anyhand:
@@ -286,15 +286,23 @@ class PresidentsPlayer(Player):
         self.hand_ind_check()
         if not hand_to_play:
             hand_to_play = self.hands[hand_ind]
-        self.spot.pop_intersecting(hand_to_play)
-        self.table.played.append(hand_to_play)
+        self.spot.remove_intersecting(hand_to_play)
+        self.table.play(hand_to_play)
+        ##########
         print(f'{self} played a {hand_to_play.type}: {sorted(hand_to_play)}')
         # if current player has no more hands or cards remaining, display his/her position
         # for next round and decrement the number of players remaining
         self.alert_table()
 
-    def alert_table(self):
-
+    def pass_turn(self):
+        if not self.spot:
+            raise RuntimeError('Player must be in a spot to pass.')
+        if isinstance(self.table.last_played, PresidentsStart):
+            raise RuntimeError('Cannot pass when you have the 3 of Clubs!')
+        if self.can_play_anyhand:
+            print('No one beat the last hand; play any hand you want!')
+        else:
+            self.table.play(PresidentsPass())
 
     @property
     def can_play_anyhand(self):
@@ -312,7 +320,7 @@ class PresidentsPlayer(Player):
     def unhand_all_hands(self):
         if not self.spot:
             raise RuntimeError('Player must be in a spot to unhand all hands.')
-        self.hands = []
+        self.spot.clear_hands()
 
     def hand_ind_check(self):
         nonlocal hand_ind
@@ -324,13 +332,8 @@ class PresidentsPlayer(Player):
             raise ValueError('There are not as many hands as you think.')
     
     @property
-    def empty_handed:
+    def empty_handed(self):
         return self.spot.empty_handed
-
-    def do_things_if_done(self):
-        if self.empty_handed:
-            self.game.announce_position()
-            self.table.last_played.winning = True
     
     def next_player(self, report=True):
         # only used the magic method here so the method chaining would make sense
@@ -339,23 +342,6 @@ class PresidentsPlayer(Player):
             self.game.current_player = self.game.next_player_gen.__next__()
         if report:
             self.game.report_turn()
-
-    def pass_turn(self):
-        assert self.game, 'Must be playing a game to play a hand.'
-        assert self.table, 'Must be at a table to play cards.'
-        assert not isinstance(self.table.played[-1], PresidentsStart), 'Cannot pass when you have the 3 of Clubs!'
-        if self.table.last_played.winning and self.table.passes_on_top == self.game.players_left:
-            print('No one beat the last hand, play any hand you want!')
-        elif self.table.last_played.winning:
-            self.table.played.append(PresidentsPass())
-            print(f'{self} passed!')
-            self.next_player()
-        elif self.table.passes_on_top == self.game.players_left - 1:
-            print('No one beat your last hand, play any hand you want!')
-        else:
-            self.table.played.append(PresidentsPass())
-            print(f'{self} passed!')
-            self.next_player()        
     
     def view(self, which):
         if which == 'all':
@@ -385,12 +371,10 @@ class PresidentsPlayer(Player):
 
     def func_lookup(self, shortcut):
         # returns None if the function is not in the player function dictionary
-        func = self.func_dict.get(shortcut)
+        func = PresidentsPlayer.func_dict.get(shortcut)
         if func:
             return func[0]
-
     
-
 class Spot:
     """
     A class for spots at a table.
@@ -424,6 +408,12 @@ class Spot:
     @property
     def empty_handed(self):
         return self.all == []
+
+    def clear_cards(self):
+        self.cards = []
+
+    def clear_hands(self):
+        self.hands = []
 
 class PresidentsSpot(Spot):
     """
@@ -460,12 +450,12 @@ class PresidentsSpot(Spot):
         else:
             return False
 
-    # Pops all cards and hands with any intersection with the hand being played.
-    def pop_intersecting(hand_to_play):
+    # Removes all cards and hands with any intersection with the hand being played.
+    def remove_intersecting(hand_to_play):
         for hand_card in hand_to_play:
             # Remove all hands containing any card in the hand being played
             self.hands[:] = [hand for hand in self.hands if hand_card not in hand]
-            self.cards.remove(card)        
+            self.cards.remove(card)      
 
 
 class Table:
@@ -508,7 +498,6 @@ class Table:
         if not player in [spot.player for spot in self.spots]:
             raise RuntimeError('Player is not in any of the spots at the table.')
 
-
     # Returns a spot if there is an open one and False otherwise.
     @property
     def open_spot(self):
@@ -521,27 +510,28 @@ class Table:
     def shuffle_deck(self):
         self.deck.shuffle()
 
-    @property
     def spot_cycler(self):
         for spot in cycle(self.spots):
             yield spot
 
     def deal_cards(self):
-        spot_cycler = cycle(self.spots.keys())
+        spot_cycler = self.spot_cycler()
         dealer = self.deck.card_dealer()
         for card in dealer:
-            next_spot = next(spot_cycler)
-            self.cards[next_spot].append(card)
+            spot = next(spot_cycler)
+            self.spot.cards.append(card)
         print('Cards have been dealt.')
-
-    # generator that yields the next player
-    def next_player_gen(self):
-        player_cycler = cycle(self.players)
-        for player in player_cycler:
-            yield player
 
     def start_game(self):
         self.game.play_game()
+
+    def clear_played(self):
+        self.played = []
+
+    def clear_cards(self):
+        for spot in self.spots:
+            spot.clear_cards()
+            spot.clear_hands()
 
     @property
     def players(self):
@@ -596,10 +586,12 @@ class PresidentsTable(Table):
     def players_left(self):
         return sum([not spot.empty_handed for spot in self.spots])
 
-    # still abstract: tells the game that something has changed or has been
-    # updated so the game can then figure out what has happened and act
-    # accordingly
-    def alert_game(self)
+    def play(hand_to_play):
+        assert isinstance(hand_to_play, PresidentsHand) or \
+               isinstance(hand_to_play, PresidentsPass), \
+               'This method can only be called by force_play_hand or pass_turn.'
+        self.played.append(hand_to_play)
+        self.game.update()        
 
 class Hand:
     """
@@ -884,32 +876,33 @@ class Presidents(CardGame):
     # to break after the first for in the list comp, not sure if intended ???
     order = [PresidentsCard(j, i) for i in value_order for j in ['c', 'd', 'h', 's']]
     
-    def __init__(self, debug=False):
-        self.rounds = 10
+    def __init__(self, rounds=10):
+        self.rounds = rounds
         # Using instance's order so class order will not be affected by shuffle.
         self.deck = Deck(self.order)
         self.table = None
         self.current_player = None
 
-    def play_round(self):
+    def play_round(self, positions):
+
         return
 
     @property
     def played(self):
         return self.table.played
 
-    @property
-    def finished(self):
-        # players_w_no_cards = 0
-        # for cards in self.table.
-        return True
-
     def play_game(self):
-        assert self.table.played == [], 'Cannot start a game if cards have already been played.'
-        assert all(self.table.spots.values()), 'Playing Presidents requires exactly 4 players.'
-        self.players_left = 4
+        if not self.table:
+            raise RuntimeError('Presidents must be played at a table.')
+        if not isinstance(table, PresidentsTable):
+            raise TypeError('Presidents can only be played at a PresidentsTable.')
+        if not all(self.table.player):
+            raise RuntimeError('Presidents requires exactly 4 players.')
         print('\nWelcome to Presidents!')
-        self.setup_table()
+        for i in range(1,self.rounds+1):
+            self.setup_round()    
+            self.play_round()
+        
         self.find_3_of_clubs()
         self.next_player_gen = self.table.next_player_gen()
         # cycle through the next player generator until hitting the player identified
@@ -932,7 +925,9 @@ class Presidents(CardGame):
     def report_turn(self):
         print(f"It's your turn, {self.current_player}! Enter 'help' to see your options!")
 
-    def setup_table(self):
+    def setup_round(self):
+        self.table.clear_cards()
+        self.table.clear_played()
         self.table.played.append(PresidentsStart())
         self.table.shuffle_deck()
         self.table.deal_cards()
@@ -955,10 +950,11 @@ class Presidents(CardGame):
                     else:
                         func()
                 except Exception as err:
-                    print(err)
-                    print("Make sure arguments are in the correct form! Enter 'help' to check out the forms!")
-                    if self.debug:
-                        raise
+                    # print(err)
+                    # print("Make sure arguments are in the correct form! Enter 'help' to check out the forms!")
+                    # if self.debug:
+                    #     raise
+                    raise
                 if self.players_left == 1:
                     self.announce_position()
                     print(f'\nThe game is over! The results are as follows:')
