@@ -534,6 +534,10 @@ class Table:
             spot.clear_hands()
 
     @property
+    def last(self):
+        return self.table[-1]
+
+    @property
     def players(self):
         return [spot.player for spot in self.spots]
 
@@ -634,6 +638,7 @@ class Hand:
     # enumerate all card combinations/permutations in order for the Hand class to 
     # then interpret, and even then, I'm not sure how it would handle comparison
     # rules, e.g. comparing hands of different sizes
+
     def __lt__(self, other):
         raise NotImplementedError('The < method must be provided by the subclass of the Hand class corresponding to the game being played.')
 
@@ -881,11 +886,7 @@ class Presidents(CardGame):
         # Using instance's order so class order will not be affected by shuffle.
         self.deck = Deck(self.order)
         self.table = None
-        self.current_player = None
-
-    def play_round(self, positions):
-
-        return
+        self.current_spot = None
 
     @property
     def played(self):
@@ -899,8 +900,9 @@ class Presidents(CardGame):
         if not all(self.table.player):
             raise RuntimeError('Presidents requires exactly 4 players.')
         print('\nWelcome to Presidents!')
+
         for i in range(1,self.rounds+1):
-            self.setup_round()    
+            self.setup_round(i)    
             self.play_round()
         
         self.find_3_of_clubs()
@@ -913,34 +915,31 @@ class Presidents(CardGame):
         self.report_turn()
         self.game_loop()
 
+   
 
-    def find_3_of_clubs(self):
-        assert isinstance(self.table.played[-1], PresidentsStart), 'Can only find the 3 of clubs at the beginning of the game.'
-        for spot, player in self.table.spots.items():
-            # remember, cards are zero-indexed in the backend and database, c2 is the 3 of Clubs
-            if Card('c', '2') in self.table.cards[spot]:
-                self.current_player = player
-        print(f'{self.current_player.name} has the 3 of Clubs!')
-        
-    def report_turn(self):
-        print(f"It's your turn, {self.current_player}! Enter 'help' to see your options!")
-
-    def setup_round(self):
+    def setup_round(self, round_num):
         self.table.clear_cards()
         self.table.clear_played()
         self.table.played.append(PresidentsStart())
         self.table.shuffle_deck()
         self.table.deal_cards()
+        self.find_3_of_clubs()
+        if round_num > 1:
+            self.handle_card_swaps()
 
-    def game_loop(self):
+    # there should be a separate function for determining the next spot that
+    # can play a hand (the next spot that is not done), but it should be in
+    # this function
+    def play_round(self):
         while True:
             try:
+                playing = self.current_spot
                 pres_in = input('pres> ')
                 pres_in_tokens = pres_in.split()
                 # all shortcuts will be methods of the Player class or one of its subclasses
                 shortcut = pres_in_tokens[0]
                 args = pres_in_tokens[1:]
-                func = self.current_player.func_lookup(shortcut)
+                func = self.current_spot.player.func_lookup(shortcut)
                 if not func:
                     print(f"{shortcut} is not a valid command. Enter 'help' to see your options!")
                     continue
@@ -955,9 +954,13 @@ class Presidents(CardGame):
                     # if self.debug:
                     #     raise
                     raise
+                
+                if self.current_spot is not playing:
+
+
                 if self.players_left == 1:
                     self.announce_position()
-                    print(f'\nThe game is over! The results are as follows:')
+                    print(f'\nThe round is over! The results are as follows:')
                     print(f'President: {self.positions[0]}')
                     print(f'Vice President: {self.positions[1]}')
                     print(f'Vice Asshole: {self.positions[2]}')
@@ -975,18 +978,66 @@ class Presidents(CardGame):
             # except Exception as err:
             #     print(f"The following error might not make sense, but you might be able to use it to tell what's wrong!\n{err}")
 
-    def announce_position(self):
-        if self.players_left == 4:
-            print(f'Congratulations {self.current_player}! You are President!')
-        elif self.players_left == 3:
-            print(f'Great work {self.current_player}! You are Vice President!')
-        elif self.players_left == 2:
-            print(f'Good work {self.current_player}! You are Vice Asshole!')
-        elif self.players_left == 1:
-            print(f'Sorry {self.current_player}! You are Asshole!')
+    # update tells everyone that a hand has been played, if the hand played was
+    # a winning hand (last card that the player had), the hand is labelled as
+    # such and the position of the player is announced, finally the next player
+    # is found and set as the current_spot
+    def update(self):
+        last = self.table.last
+        if isinstance(last, PresidentsPass):
+            print(f'{self.current_spot.player} passed!')
+        elif isinstance(last, PresidentsHand):
+            print(f'{self.current_spot.player} played a {last.type}: {last}')
         else:
-            raise AssertionError('impossible number of players left')
-        self.positions.append(self.current_player)
+            AssertionError('Impossible object added to played.')
+        if self.current_spot.empty_handed:
+            last.winning = True
+            self.assign_position()
+            self.announce_position()
+        
+    
+    def next_spot_with_cards(self):
+        spot_cycler = self.table.spot_cycler()
+        spot = next(spot_cycler)
+        while not spot.empty_handed:
+            spot = next(spot_cycler)
+        yield spot
+
+    # Finds the 3 of Clubs, sets the current spot to the one with the 3 of
+    # clubs and iterates the next_spot generator to the current player.
+    def find_3_of_clubs(self):
+        assert isinstance(self.table.last_played, PresidentsStart), 'Can only find the 3 of clubs at the beginning of the game.'
+        for spot in self.spots:
+            # remember, cards are zero-indexed in the backend and database, c2 is the 3 of Clubs
+            if Card('c', '2') in spot.cards:
+                self.current_spot = spot
+                break
+        print(f'{self.current_spot.player} has the 3 of Clubs!')
+        next_spot_with_cards = self.next_spot_with_cards()
+        while next_spot_with_cards is not self.current_spot:
+            next()
+
+        
+    def report_turn(self):
+        print(f"It's your turn, {self.current_spot.player}! Enter 'help' to see your options!")
+
+    def handle_card_swaps(self):
+        return
+
+    def assign_position(self):
+        if self.players_left == 4:
+            self.current_spot.position = 'President'
+        elif self.players_left == 3:
+            self.current_spot.position = 'Vice President'
+        elif self.players_left == 2:
+            self.current_spot.position = 'Vice Asshole'
+        elif self.players_left == 1:
+            self.current_spot.position = 'Asshole'
+        else:
+            raise AssertionError('Impossible number of players left.')
+
+    def announce_position(self):
+        print(f'{self.current_spot.player} is {self.current_spot.position}!')
 
     def __repr__(self):
         return 'Presidents Game Instance'
