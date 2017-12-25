@@ -104,7 +104,7 @@ class Deck:
     A simple class for decks of cards.
     """
     # A deck is a list of Card objects
-    def __init__(self, name='Standard', cards=[]):
+    def __init__(self, cards=[], name='Standard'):
         self.name = name
         # If a custom deck of cards is not provided:
         if not cards:
@@ -126,7 +126,6 @@ class Deck:
         print('Deck has been shuffled.')
     
     # Generator that yields each card in the deck.
-    @property
     def card_dealer(self):
         for card in self.cards:
             yield card
@@ -188,31 +187,31 @@ class Player:
         return self.spot.all
 
     def __repr__(self):
-        return f'Player({self.name})'
+        return self.name
 
 
 class PresidentsPlayer(Player):
     """
     class for presidents players.
     """
-    func_dict =\
-    {   
-    'view': (self.view,
-        "'view cards': show cards\n            'view hands': show hands\n            'view all': show cards and hands\n            'view last': show last card played"),
-    'hand': (self.create_hand,
-        "use shorthand versions of card names separated by spaces to create a hand,\n            e.g. 'hand s2 h2 d2 c2 sa' creates a 2 bomb with an Ace of Spades"),
-    'unhand': (self.unhand_hand,
-        "deconstruct the hand at index i\n            i.e. 'unhand i' puts all the individual cards which made up the i-th hand back in your cards"),
-    'play': (self.play_hand, 
-        "play the hand at index i\n            i.e. 'play i' plays the i-th hand in hands\n            view hands and corresponding index with 'view hands'"),
-    'pass': (self.pass_turn,
-        'pass on the current hand being played on'),
-    'help': (self.help,
-        'list the command options and short descriptions of each'),
-    }
     # this is useless right now but might add things later
     def __init__(self, name):
         Player.__init__(self, name)
+        self.func_dict = \
+        {   
+        'view': (self.view,
+            "'view cards': show cards\n            'view hands': show hands\n            'view all': show cards and hands\n            'view last': show last card played"),
+        'hand': (self.create_hand,
+            "use shorthand versions of card names separated by spaces to create a hand,\n            e.g. 'hand s2 h2 d2 c2 sa' creates a 2 bomb with an Ace of Spades"),
+        'unhand': (self.unhand_hand,
+            "deconstruct the hand at index i\n            i.e. 'unhand i' puts all the individual cards which made up the i-th hand back in your cards"),
+        'play': (self.play_hand, 
+            "play the hand at index i\n            i.e. 'play i' plays the i-th hand in hands\n            view hands and corresponding index with 'view hands'"),
+        'pass': (self.pass_turn,
+            'pass on the current hand being played on'),
+        'help': (self.help,
+            'list the command options and short descriptions of each'),
+        }
         
     def create_hand(self, *cards):
         # *cards should be comma separated UI suite_value strings (i.e the ones
@@ -261,10 +260,11 @@ class PresidentsPlayer(Player):
                     self.play_hand(-1)
                 # If it can't be played, unhand the created hand.
                 except:
+                    raise
                     self.unhand_hand(-1)
-                    raise # not sure about this raise
+                    #raise # not sure about this raise
                 return
-        self.hand_ind_check()
+        hand_ind = self.hand_ind_check(hand_ind)
         hand_to_play = self.hands[hand_ind]
         # if the hand wanting to played is not valid, attempt to validate it
         assert hand_to_play.valid, 'Invalid hands should not be able to get to this point.'
@@ -283,16 +283,11 @@ class PresidentsPlayer(Player):
                 self.force_play_hand(hand_ind, hand_to_play)
 
     def force_play_hand(self, hand_ind, hand_to_play=None):
-        self.hand_ind_check()
+        hand_ind = self.hand_ind_check(hand_ind)
         if not hand_to_play:
             hand_to_play = self.hands[hand_ind]
         self.spot.remove_intersecting(hand_to_play)
         self.table.play(hand_to_play)
-        ##########
-        print(f'{self} played a {hand_to_play.type}: {sorted(hand_to_play)}')
-        # if current player has no more hands or cards remaining, display his/her position
-        # for next round and decrement the number of players remaining
-        self.alert_table()
 
     def pass_turn(self):
         if not self.spot:
@@ -314,7 +309,7 @@ class PresidentsPlayer(Player):
         if hand_ind == 'all':
             self.unhand_all_hands()
             return
-        self.hand_ind_check()
+        hand_ind = self.hand_ind_check(hand_ind)
         self.hands.pop(hand_ind)
         
     def unhand_all_hands(self):
@@ -322,48 +317,37 @@ class PresidentsPlayer(Player):
             raise RuntimeError('Player must be in a spot to unhand all hands.')
         self.spot.clear_hands()
 
-    def hand_ind_check(self):
-        nonlocal hand_ind
+    def hand_ind_check(self, hand_ind):
         try:
             hand_ind = int(hand_ind)
         except:
             raise ValueError('Desired hand index must be an integer.')
         if len(self.hands) <= hand_ind:
             raise ValueError('There are not as many hands as you think.')
+        return hand_ind
     
     @property
     def empty_handed(self):
         return self.spot.empty_handed
     
-    def next_player(self, report=True):
-        # only used the magic method here so the method chaining would make sense
-        self.game.current_player = self.game.next_player_gen.__next__()
-        while self.game.current_player.done:
-            self.game.current_player = self.game.next_player_gen.__next__()
-        if report:
-            self.game.report_turn()
-    
     def view(self, which):
         if which == 'all':
             self.view('cards')
             self.view('hands')
-            # print(f'Hands: {[sorted(hand) for hand in self.hands]}\nCards: {sorted(self.cards)}')
         elif which == 'hands':
             for i, hand in enumerate(self.hands):
                 print(f'{i}: {hand.cards}')
         elif which == 'cards':
             print(sorted(self.cards))
         elif which == 'last':
-            if self.table.last_played.winning and self.table.passes_on_top == self.game.players_left:
-                print(f'You can play any hand you want!')
-            elif self.table.last_played.winning:
-                print(f'What you have to beat: {self.table.last_played.cards}')
-            elif self.table.passes_on_top == self.game.players_left - 1:
+            if self.spot.has_3_of_clubs:
+                print('You must play a something with the 3 of Clubs!')
+            elif self.can_play_anyhand:
                 print(f'You can play any hand you want!')
             else:
                 print(f'What you have to beat: {self.table.last_played.cards}')
         else:
-            print(f"{which} is not a valid argument for view. Enter 'help' to see your options")
+            print(f"{which} is not a valid argument for view. Enter 'help' to see your options!")
 
     def help(self):
         for shortcut, info in self.func_dict.items():
@@ -371,7 +355,7 @@ class PresidentsPlayer(Player):
 
     def func_lookup(self, shortcut):
         # returns None if the function is not in the player function dictionary
-        func = PresidentsPlayer.func_dict.get(shortcut)
+        func = self.func_dict.get(shortcut)
         if func:
             return func[0]
     
@@ -389,7 +373,7 @@ class Spot:
     
     @property
     def all(self):
-        return self.hands + self.hands
+        return self.hands + self.cards
 
     def add_player(self, player):
         if self.player:
@@ -414,6 +398,9 @@ class Spot:
 
     def clear_hands(self):
         self.hands = []
+    
+    def __repr__(self):
+        return 'A spot.'
 
 class PresidentsSpot(Spot):
     """
@@ -438,6 +425,8 @@ class PresidentsSpot(Spot):
     # I will explain this later...
     @property
     def can_play_anyhand(self):
+        # if isinstance(self.table.last, PresidentsStart):
+        #     return False
         winning_last = self.table.winning_last
         passes = self.table.passes_on_top
         players_left = self.table.players_left
@@ -451,11 +440,14 @@ class PresidentsSpot(Spot):
             return False
 
     # Removes all cards and hands with any intersection with the hand being played.
-    def remove_intersecting(hand_to_play):
+    def remove_intersecting(self, hand_to_play):
         for hand_card in hand_to_play:
             # Remove all hands containing any card in the hand being played
             self.hands[:] = [hand for hand in self.hands if hand_card not in hand]
-            self.cards.remove(card)      
+            self.cards.remove(hand_card)    
+
+    def __repr__(self):
+        return 'A presidents spot'  
 
 
 class Table:
@@ -519,7 +511,7 @@ class Table:
         dealer = self.deck.card_dealer()
         for card in dealer:
             spot = next(spot_cycler)
-            self.spot.cards.append(card)
+            spot.cards.append(card)
         print('Cards have been dealt.')
 
     def start_game(self):
@@ -535,7 +527,7 @@ class Table:
 
     @property
     def last(self):
-        return self.table[-1]
+        return self.played[-1]
 
     @property
     def players(self):
@@ -588,14 +580,15 @@ class PresidentsTable(Table):
     # Returns the number of players who have not exhausted their cards.
     @property
     def players_left(self):
-        return sum([not spot.empty_handed for spot in self.spots])
+        return sum([int(not spot.empty_handed) for spot in self.spots])
 
-    def play(hand_to_play):
+    def play(self, hand_to_play):
         assert isinstance(hand_to_play, PresidentsHand) or \
                isinstance(hand_to_play, PresidentsPass), \
                'This method can only be called by force_play_hand or pass_turn.'
         self.played.append(hand_to_play)
         self.game.update()        
+
 
 class Hand:
     """
@@ -881,10 +874,10 @@ class Presidents(CardGame):
     # to break after the first for in the list comp, not sure if intended ???
     order = [PresidentsCard(j, i) for i in value_order for j in ['c', 'd', 'h', 's']]
     
-    def __init__(self, rounds=10):
+    def __init__(self, rounds=1):
         self.rounds = rounds
         # Using instance's order so class order will not be affected by shuffle.
-        self.deck = Deck(self.order)
+        self.deck = Deck(self.order, 'Presidents')
         self.table = None
         self.current_spot = None
 
@@ -895,13 +888,13 @@ class Presidents(CardGame):
     def play_game(self):
         if not self.table:
             raise RuntimeError('Presidents must be played at a table.')
-        if not isinstance(table, PresidentsTable):
+        if not isinstance(self.table, PresidentsTable):
             raise TypeError('Presidents can only be played at a PresidentsTable.')
-        if not all(self.table.player):
+        if not all(self.table.players):
             raise RuntimeError('Presidents requires exactly 4 players.')
         print('\nWelcome to Presidents!')
         for i in range(1,self.rounds+1):
-            self.setup_round(i)    
+            self.setup_round(i)
             self.play_round()
         print('\nTHANKS FOR PLAYING!')
 
@@ -931,7 +924,7 @@ class Presidents(CardGame):
                     # if self.debug:
                     #     raise
                     raise
-                if self.table.players_left == 1:
+                if self.players_left == 1:
                     self.assign_position()
                     self.announce_position()
                     print(f'\nThe round is over! The results are as follows:')
@@ -969,7 +962,7 @@ class Presidents(CardGame):
         if isinstance(last, PresidentsPass):
             print(f'{self.current_spot.player} passed!')
         elif isinstance(last, PresidentsHand):
-            print(f'{self.current_spot.player} played a {last.type}: {last}')
+            print(f'{self.current_spot.player} played a {last.type}: {sorted(last.cards)}')
         else:
             AssertionError('Impossible object added to played.')
         if self.current_spot.empty_handed:
@@ -990,7 +983,7 @@ class Presidents(CardGame):
     # clubs and creates and iterates the next_spot generator to the current player.
     def find_3_of_clubs(self):
         assert isinstance(self.table.last_played, PresidentsStart), 'Can only find the 3 of clubs at the beginning of the game.'
-        for spot in self.spots:
+        for spot in self.table.spots:
             # remember, cards are zero-indexed in the backend and database, c2 is the 3 of Clubs
             if Card('c', '2') in spot.cards:
                 self.current_spot = spot
@@ -1009,17 +1002,22 @@ class Presidents(CardGame):
     def handle_card_swaps(self):
         return
 
+    @property
+    def players_left(self):
+        return self.table.players_left
+
     def assign_position(self):
-        if self.players_left == 4:
+        players_left = self.players_left
+        if players_left == 4:
             self.current_spot.position = 'President'
-        elif self.players_left == 3:
+        elif players_left == 3:
             self.current_spot.position = 'Vice President'
-        elif self.players_left == 2:
+        elif players_left == 2:
             self.current_spot.position = 'Vice Asshole'
-        elif self.players_left == 1:
+        elif players_left == 1:
             self.current_spot.position = 'Asshole'
         else:
-            raise AssertionError('Impossible number of players left.')
+            raise AssertionError(f'Impossible number of players left: {players_left}.')
 
     def announce_position(self):
         print(f'{self.current_spot.player} is {self.current_spot.position}!')
@@ -1045,14 +1043,13 @@ class PresidentsPass:
 
 
 @main
-def quick_game(debug=False):
+def quick_game(*names):
     print('Welcome to Single Player Command Line Presidents!')
     t = PresidentsTable()
-    if debug:
-        t.game.debug = True
-    name = input('What is your name? ')
-    print('Who do you want to play presidents with?')
-    other_names = [input('Other Name: '), input('Other Name: '), input('Other Name: ')]
-    for name in [name] + other_names:
-        PresidentsPlayer(name).join_table(t)
+    # name = input('What is your name? ')
+    # print('Who do you want to play presidents with?')
+    # other_names = [input('Other Name: '), input('Other Name: '), input('Other Name: ')]
+    # for name in [name] + other_names:
+    for name in names:
+        t.add_player(PresidentsPlayer(name))
     t.start_game()

@@ -1,9 +1,11 @@
 from sp_presidents import *
 
-# class test:
-#     a = [1,2,3]
-#     b = [4,5,6]
-#     # y = [sum(i,j) for i in a for j in b]
+class test:
+    a = [1,2,3]
+    b = [4,5,6]
+    # y = [sum(i,j) for i in a for j in b]
+    def __init__(self):
+        self.aa = [self.a]
 
 
 
@@ -61,12 +63,12 @@ t = PresidentsTable()
 s = PresidentsSpot(table=t)
 p = PresidentsPlayer('Player')
 s.add_player(p)
-s.cards = [PresidentsCard('c', '3'),
+s.cards = [PresidentsCard('c', '4'),
            PresidentsCard('d', '3'),
-           PresidentsCard('d', '5'),
-           PresidentsCard('h', '5'),
-           PresidentsCard('s', '5')]
-p.create_hand('c4', 'd4', 'd6', 'h6', 's6')
+           PresidentsCard('d', '1'),
+           PresidentsCard('h', 'k'),
+           PresidentsCard('s', '2')]
+# p.create_hand('c4', 'd4', 'd6', 'h6', 's6')
 
 # h = Hand([PresidentsCard('c', '3'),
 #            PresidentsCard('d', '3'),
