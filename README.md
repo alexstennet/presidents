@@ -8,6 +8,10 @@ If you are on Windows (don't worry, I am too), set up [Windows Subsystem for Lin
 ~~~
 git clone https://github.com/gitavi/presidents.git
 ~~~
+3. Change directory to `presidents` by entering the following in a terminal:
+~~~
+cd presidents
+~~~
 3. Set up the appropriate environment by entering the following in a terminal:
 ~~~
 make env
