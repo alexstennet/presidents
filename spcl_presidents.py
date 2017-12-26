@@ -1,6 +1,8 @@
 from helpers import main
 import random
 from itertools import cycle
+import readline
+from ansimarkup import parse
 
 
 class Card:
@@ -233,7 +235,7 @@ class PresidentsPlayer(Player):
         desired_cards = []
         for card in cards_objs:
             if card not in self.cards:
-                raise RuntimeError('The player does not have at least one of these cards.')
+                raise RuntimeError('You do not have at least one of these cards!')
             else:
                 desired_cards.append(card)
         desired_hand = PresidentsHand(desired_cards)
@@ -340,7 +342,7 @@ class PresidentsPlayer(Player):
         elif which == 'cards':
             print(sorted(self.cards))
         elif which == 'last':
-            if self.spot.has_3_of_clubs:
+            if isinstance(self.table.last, PresidentsPass):
                 print('You must play a something with the 3 of Clubs!')
             elif self.can_play_anyhand:
                 print(f'You can play any hand you want!')
@@ -351,7 +353,7 @@ class PresidentsPlayer(Player):
 
     def help(self):
         for shortcut, info in self.func_dict.items():
-            print(f'{shortcut.ljust(10)}: {info[1]}')
+            print(f'{shortcut.ljust(10)}: {info[1].rjust(10)}')
 
     def func_lookup(self, shortcut):
         # returns None if the function is not in the player function dictionary
@@ -876,8 +878,7 @@ class Presidents(CardGame):
     
     def __init__(self, rounds=1):
         self.rounds = rounds
-        # Using instance's order so class order will not be affected by shuffle.
-        self.deck = Deck(self.order, 'Presidents')
+        self.deck = Deck(self.order[:], 'Presidents')
         self.table = None
         self.current_spot = None
 
@@ -891,7 +892,7 @@ class Presidents(CardGame):
         if not isinstance(self.table, PresidentsTable):
             raise TypeError('Presidents can only be played at a PresidentsTable.')
         if not all(self.table.players):
-            raise RuntimeError('Presidents requires exactly 4 players.')
+            raise RuntimeError(f'Presidents requires exactly 4 players; there are only {self.table.players}.')
         print('\nWelcome to Presidents!')
         for i in range(1,self.rounds+1):
             self.setup_round(i)
@@ -904,7 +905,7 @@ class Presidents(CardGame):
     def play_round(self):
         while True:
             try:
-                pres_in = input('pres> ')
+                pres_in = input(parse('<b,y,>pres> </b,y,>'))
                 pres_in_tokens = pres_in.split()
                 # all shortcuts will be methods of the Player class or one of its subclasses
                 shortcut = pres_in_tokens[0]
@@ -919,11 +920,8 @@ class Presidents(CardGame):
                     else:
                         func()
                 except Exception as err:
-                    # print(err)
-                    # print("Make sure arguments are in the correct form! Enter 'help' to check out the forms!")
-                    # if self.debug:
-                    #     raise
-                    raise
+                    print(err)
+                    #raise
                 if self.players_left == 1:
                     self.assign_position()
                     self.announce_position()
@@ -1046,10 +1044,12 @@ class PresidentsPass:
 def quick_game(*names):
     print('Welcome to Single Player Command Line Presidents!')
     t = PresidentsTable()
-    # name = input('What is your name? ')
-    # print('Who do you want to play presidents with?')
-    # other_names = [input('Other Name: '), input('Other Name: '), input('Other Name: ')]
-    # for name in [name] + other_names:
+    if not names:
+        names = []
+        names.append(input('What is your name? '))
+        print('Who do you want to play presidents with?')
+        for _ in range(3):
+            names.append(input('Other Name: '))
     for name in names:
         t.add_player(PresidentsPlayer(name))
     t.start_game()

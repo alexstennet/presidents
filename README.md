@@ -1,5 +1,11 @@
 # presidents
 
+## Setup
+
+## How to Play presidents
+
+## How to Play Single Player Command Line presidents
+
 ## Very High Level Plan
 
 1. Design and implement a database for storing all data associated with games of presidents
