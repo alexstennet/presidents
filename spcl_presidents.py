@@ -6,11 +6,11 @@ from ansimarkup import parse
 
 
 class Card:
-"""
-A general class for cards in a standard 52-card deck. These cards need not be
-tied to any particular card game but some of their methods depend on the game
-they are being used for, namely, comparing cards with each other.  
-"""
+    """
+    A general class for cards in a standard 52-card deck. These cards need not be
+    tied to any particular card game but some of their methods depend on the game
+    they are being used for, namely, comparing cards with each other.  
+    """
     suite_dict = {'c': 'Clubs', 'd': 'Diamonds', 'h': 'Hearts', 's': 'Spades'}
     # Note that the card values are zero-indexed to avoid having to store cards
     # with value 10 with an additional character. Although this slightly confusing
@@ -80,9 +80,9 @@ they are being used for, namely, comparing cards with each other.
 
 
 class PresidentsCard(Card):
-"""
-A class for presidents cards, mainly dictating card comparisons.
-"""
+    """
+    A class for presidents cards, mainly dictating card comparisons.
+    """
     # In order to compare a card with another, we need only compare each card's
     # position in the President's card order. The same follows for the greater
     # than method.
@@ -102,9 +102,9 @@ A class for presidents cards, mainly dictating card comparisons.
 
 
 class Deck:
-"""
-A simple class for decks of cards.
-"""
+    """
+    A simple class for decks of cards.
+    """
     # A deck is a list of Card objects
     def __init__(self, cards=[], name='Standard'):
         self.name = name
@@ -137,9 +137,9 @@ A simple class for decks of cards.
 
 
 class Player:
-"""
-A general class for card game players.
-"""
+    """
+    A general class for card game players.
+    """
     def __init__(self, name):
         self.name = name
         self.spot = None
@@ -193,9 +193,10 @@ A general class for card game players.
 
 
 class PresidentsPlayer(Player):
-"""
-class for presidents players.
-"""
+    """
+    class for presidents players.
+    """
+    is_human = True
     # this is useless right now but might add things later
     def __init__(self, name):
         Player.__init__(self, name)
@@ -363,20 +364,20 @@ class for presidents players.
     # I don't really like this but I'm not sure how else the AI will know it's
     # its turn...(yet!)
     @property
-    def on_turn:
+    def on_turn(self):
         return self is self.table.game.current_spot.player
 
 
-AIPresidentsPlayer(PresidentsPlayer):
-"""
+class AIPresidentsPlayer(PresidentsPlayer):
+    """
 
-"""
-
+    """
+    is_human = False
 
 class Spot:
-"""
-A class for spots at a table.
-"""
+    """
+    A class for spots at a table.
+    """
     def __init__(self, table):
         if not isinstance(table, Table):
             raise TypeError('Table must be a Table object.')
@@ -418,9 +419,9 @@ A class for spots at a table.
 
 
 class PresidentsSpot(Spot):
-"""
-A class for presidents spots.
-"""
+    """
+    A class for presidents spots.
+    """
     def __init__(self, table):
         if not isinstance(table, PresidentsTable):
             raise TypeError('Only PresidentsTables can have PresidentsSpots.')
@@ -466,9 +467,9 @@ A class for presidents spots.
 
 
 class Table:
-"""
-Where players sit and play card games; holds instances of the Spot class.
-"""
+    """
+    Where players sit and play card games; holds instances of the Spot class.
+    """
     def __init__(self, name='Flavorless', num_spots=4, spot=Spot):
         self.spots = []
         for _ in range(num_spots):
@@ -553,9 +554,9 @@ Where players sit and play card games; holds instances of the Spot class.
 
 
 class PresidentsTable(Table):
-"""
-class for a table that is already set up for presidents
-"""
+    """
+    class for a table that is already set up for presidents
+    """
     def __init__(self, name='Presidents'):
         Table.__init__(self, name, num_spots=4, spot=PresidentsSpot)
         self.add_game(Presidents())
@@ -606,9 +607,9 @@ class for a table that is already set up for presidents
 
 
 class Hand:
-"""
-Simple class for card hands.
-"""
+    """
+    Simple class for card hands.
+    """
     # a hand is a list of Card objects
     def __init__(self, cards):
         for card in cards:
@@ -667,9 +668,9 @@ Simple class for card hands.
 
     
 class PresidentsHand(Hand):
-"""
-class for presidents hands
-"""
+    """
+    class for presidents hands
+    """
     def __init__(self, cards=[], valid=False):
         assert len(cards) <= 5, 'PresidentsHands can consist of 5 cards maximum.'
         Hand.__init__(self, cards)
@@ -864,17 +865,17 @@ class for presidents hands
 
 
 class CardGame:
-"""
-generic card game class
-"""
+    """
+    generic card game class
+    """
     def __repr__(self):
         'A card game'
 
 
 class Presidents(CardGame):
-"""
-Presidents card game class.
-"""
+    """
+    Presidents card game class.
+    """
     # 4 suites: clubs, diamonds, hearts, spades
     # Ordered from weakest to strongest.
     suite_order = ['c', 'd', 'h', 's']
@@ -1010,8 +1011,8 @@ Presidents card game class.
     def report_turn(self):
         print(f"It's your turn, {self.current_spot.player}! Enter 'help' to see your options!")
         # the following lines are only for testing when playing against yourself...
-        self.current_spot.player.view('all')
-        self.current_spot.player.view('last')
+        # self.current_spot.player.view('all')
+        # self.current_spot.player.view('last')
 
     def handle_card_swaps(self):
         return
@@ -1048,17 +1049,17 @@ Presidents card game class.
 
 
 class PresidentsStart:
-"""
-Class for object that every presidents game starts with.
-"""
+    """
+    Class for object that every presidents game starts with.
+    """
     def __repr__(self):
         return 'Start'
 
 
 class PresidentsPass:
-"""
-Class for object that represents a passed turn in presidents.
-"""
+    """
+    Class for object that represents a passed turn in presidents.
+    """
     def __repr__(self):
         return 'Pass'
 
