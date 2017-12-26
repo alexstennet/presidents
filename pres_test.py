@@ -1,4 +1,4 @@
-from sp_presidents import *
+from spcl_presidents import *
 
 class test:
     a = [1,2,3]
@@ -9,27 +9,28 @@ class test:
 
 
 
-# t = PresidentsTable()
-# p = t.game
-# p.debug = True
-# a = PresidentsPlayer('Adam')
-# b = PresidentsPlayer('Bobby')
-# c = PresidentsPlayer('Collin')
-# d = PresidentsPlayer('Dave')
-# for i in [a, b, c, d]:
-#     i.join_table(t)
-# a.cards = [
-#     Card('c','2',p),
-# ]
-# b.cards = [
-#     Card('s','1',p),
-# ]
-# c.cards = [
-#     Card('h','1',p),
-# ]
-# d.cards = [
-#     Card('c','4',p),
-# ]
+t = PresidentsTable()
+p = t.game
+a = PresidentsPlayer('A')
+b = PresidentsPlayer('B')
+c = PresidentsPlayer('C')
+d = PresidentsPlayer('D')
+for i in [a, b, c, d]:
+    t.add_player(i)
+a.spot.cards = [
+    PresidentsCard('c','2'),
+]
+b.spot.cards = [
+    PresidentsCard('s','1'),
+]
+c.spot.cards = [
+    PresidentsCard('h','1'),
+]
+d.spot.cards = [
+    PresidentsCard('c','4'),
+]
+p.table.played.append(PresidentsStart())
+p.find_3_of_clubs()
 # t.start_game()
 # hand c3 d3 h3 s3 h7
 # hand cj dj hj sj cq
@@ -53,21 +54,21 @@ class test:
 #                     PresidentsCard('h', '7'),
 #                     PresidentsCard('s', '7')])
 
-# k = PresidentsHand([PresidentsCard('c', '3'),
-#                     PresidentsCard('d', '3'),
-#                     PresidentsCard('d', '5'),
-#                     PresidentsCard('h', '5'),
-#                     PresidentsCard('s', '5')])
+k = PresidentsHand([PresidentsCard('c', '3'),
+                    PresidentsCard('d', '3'),
+                    PresidentsCard('d', '5'),
+                    PresidentsCard('h', '5'),
+                    PresidentsCard('s', '5')])
 
-t = PresidentsTable()
-s = PresidentsSpot(table=t)
-p = PresidentsPlayer('Player')
-s.add_player(p)
-s.cards = [PresidentsCard('c', '4'),
-           PresidentsCard('d', '3'),
-           PresidentsCard('d', '1'),
-           PresidentsCard('h', 'k'),
-           PresidentsCard('s', '2')]
+# t = PresidentsTable()
+# s = PresidentsSpot(table=t)
+# p = PresidentsPlayer('Player')
+# s.add_player(p)
+# s.cards = [PresidentsCard('c', '4'),
+#            PresidentsCard('d', '3'),
+#            PresidentsCard('d', '1'),
+#            PresidentsCard('h', 'k'),
+#            PresidentsCard('s', '2')]
 # p.create_hand('c4', 'd4', 'd6', 'h6', 's6')
 
 # h = Hand([PresidentsCard('c', '3'),
