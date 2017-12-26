@@ -197,7 +197,7 @@ class PresidentsPlayer(Player):
     class for presidents players.
     """
     is_human = True
-    # this is useless right now but might add things later
+    
     def __init__(self, name):
         Player.__init__(self, name)
         self.func_dict = \
@@ -370,9 +370,18 @@ class PresidentsPlayer(Player):
 
 class AIPresidentsPlayer(PresidentsPlayer):
     """
-
+    class for a super basic AI presidents player; this AI simply checks its
+    cards for anything that can beat the last hand and plays it no matter what
     """
     is_human = False
+    
+    def play_or_pass(self):
+        if self.can_play_anyhand:
+            min_card = min(self.cards)
+            suite, value = min_card.suite, min_card.value
+            UI_suite_value = suite + 
+            self.play_hand()
+        hand_to_beat = self.table.
 
 class Spot:
     """
@@ -919,24 +928,28 @@ class Presidents(CardGame):
     # this function
     def play_round(self):
         while True:
+            current_player = self.current_spot.player
             try:
-                pres_in = input(parse('<b,y,>pres> </b,y,>'))
-                pres_in_tokens = pres_in.split()
-                # all shortcuts will be methods of the Player class or one of its subclasses
-                shortcut = pres_in_tokens[0]
-                args = pres_in_tokens[1:]
-                func = self.current_spot.player.func_lookup(shortcut)
-                if not func:
-                    print(f"{shortcut} is not a valid command. Enter 'help' to see your options!")
-                    continue
-                try:
-                    if args:
-                        func(*args)
-                    else:
-                        func()
-                except Exception as err:
-                    print(err)
-                    #raise
+                if not current_player.is_human:
+                    self.play_or_pass()
+                else:
+                    pres_in = input(parse('<b,y,>pres> </b,y,>'))
+                    pres_in_tokens = pres_in.split()
+                    # all shortcuts will be methods of the Player class or one of its subclasses
+                    shortcut = pres_in_tokens[0]
+                    args = pres_in_tokens[1:]
+                    func = current_player.func_lookup(shortcut)
+                    if not func:
+                        print(f"{shortcut} is not a valid command. Enter 'help' to see your options!")
+                        continue
+                    try:
+                        if args:
+                            func(*args)
+                        else:
+                            func()
+                    except Exception as err:
+                        print(err)
+                        #raise
                 if self.players_left == 1:
                     self.assign_position(asshole=True)
                     self.announce_position()
@@ -951,8 +964,7 @@ class Presidents(CardGame):
                 return
             except AssertionError as err:
                 print(err)
-            # except Exception as err:
-            #     print(f"The following error might not make sense, but you might be able to use it to tell what's wrong!\n{err}")
+                raise
 
     def setup_round(self, round_num):
         self.table.clear_cards()
