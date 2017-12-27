@@ -1,6 +1,6 @@
 import random
 import readline
-from itertools import cycle
+from itertools import cycle, combinations
 from helpers import main
 from ansimarkup import parse
 
@@ -22,6 +22,7 @@ class Card:
     UI_to_BEDB_dict = {'2': '1', '3': '2', '4': '3', '5': '4', '6': '5',
                        '7': '6', '8': '7', '9': '8', '10': '9', 'j': 'j',
                        'q': 'q', 'k': 'k', 'a': 'a'}
+    BEDB_to_UI_dict = {j: i for i, j in UI_to_BEDB_dict.items()}
 
     def __init__(self, suite, value):
         if not isinstance(suite, str):
@@ -45,6 +46,11 @@ class Card:
     def same_card(self, other):
         return self.same_suite(other) and self.same_value(other)
 
+    @property
+    def UI_suite_value(self):
+        suite, value = self.suite, self.value
+        return suite + Card.BEDB_to_UI_dict[value]
+    
     # Replace these methods if this basic equality definition must be expanded
     # or simply does not apply.
     def __eq__(self, other):
@@ -197,7 +203,7 @@ class PresidentsPlayer(Player):
     class for presidents players.
     """
     is_human = True
-    # this is useless right now but might add things later
+    
     def __init__(self, name):
         Player.__init__(self, name)
         self.func_dict = \
@@ -223,10 +229,18 @@ class PresidentsPlayer(Player):
             raise RuntimeError('Player must be in a spot to create a hand.')
         # Convert the UI suite_value strings to backend/database suite_value
         # strings; this will KeyError if the the card value given is not valid.
+        print(cards)
         try:
-            cards = [card[0]+PresidentsCard.UI_to_BEDB_dict[card[1:]] for card in cards]
-        except:# KeyError:
+            # Could not use list comprehension because card assignment is lost
+            # and exception requires card to be assigned.
+            temp_cards = []
+            for card in cards:
+                temp_cards.append(card[0]+Card.UI_to_BEDB_dict[card[1:]])
+            print(cards)
+        except:
             raise ValueError(f"{card[1:]} is not a valid card value; they are '2'-'10', 'j', 'q', 'k', 'a'.")
+        else:
+            cards = temp_cards
         # Convert suite_value strings to Card objects; this will ValueError if
         # if the card suite given is not valid; error message is included.
         cards_objs = []
@@ -272,7 +286,7 @@ class PresidentsPlayer(Player):
         assert hand_to_play.valid, 'Invalid hands should not be able to get to this point.'
         last_played = self.table.last_played
         passes = self.table.passes_on_top
-        if isinstance(last_played, PresidentsStart):
+        if self.has_3_of_clubs:
             if not Card('c','2') in hand_to_play:
                 raise RuntimeError('The starting hand must contain the 3 of Clubs!')
             self.force_play_hand(hand_ind, hand_to_play)
@@ -294,12 +308,16 @@ class PresidentsPlayer(Player):
     def pass_turn(self):
         if not self.spot:
             raise RuntimeError('Player must be in a spot to pass.')
-        if isinstance(self.table.last_played, PresidentsStart):
+        if self.has_3_of_clubs:
             raise RuntimeError('Cannot pass when you have the 3 of Clubs!')
         if self.can_play_anyhand:
             print('No one beat the last hand; play anyhand you want!')
         else:
             self.table.play(PresidentsPass())
+
+    @property
+    def has_3_of_clubs(self):
+        return self.spot.has_3_of_clubs
 
     @property
     def can_play_anyhand(self):
@@ -342,7 +360,7 @@ class PresidentsPlayer(Player):
         elif which == 'cards':
             print(sorted(self.cards))
         elif which == 'last':
-            if isinstance(self.table.last, PresidentsStart):
+            if self.has_3_of_clubs:
                 print('You must play a something with the 3 of Clubs!')
             elif self.can_play_anyhand:
                 print(f'You can play any hand you want!')
@@ -370,9 +388,58 @@ class PresidentsPlayer(Player):
 
 class AIPresidentsPlayer(PresidentsPlayer):
     """
-
+    class for a super basic AI presidents player; this AI simply checks its
+    cards for anything that can beat the last hand and plays it no matter what
     """
     is_human = False
+    
+    def play_or_pass(self):
+        # If the AI has the 3 of Clubs, play it
+        if self.has_3_of_clubs:
+            self.play_hand('c3')
+        # If the AI can play anyhand, simple play the lowest single
+        if self.can_play_anyhand:
+            min_card = min(self.cards)
+            self.play_hand(min_card.UI_suite_value)
+            return
+        hand_to_beat = self.table.last_played
+        beater = self.hand_if_can_beat(hand_to_beat)
+        if beater:
+            self.create_hand(*beater)
+            self.play_hand(-1)
+        else:
+            self.pass_turn()
+
+    def hand_if_can_beat(self, hand_to_beat):
+        type = hand_to_beat.type
+        if type == 'single':
+            for card in sorted(self.cards):
+                if card > hand_to_beat[0]:
+                    return [card.UI_suite_value]
+            return False
+        elif type == 'double':
+            # Checking all pairwise combinations of cards in hand for a double. 
+            for card0, card1 in combinations(sorted(self.cards), 2):
+                temp_hand = PresidentsHand([card0, card1])
+                temp_hand.validate(print_message=False)
+                if temp_hand.is_double and temp_hand > hand_to_beat:
+                    return [card.UI_suite_value for card in temp_hand.cards]
+            return False
+        elif type == 'triple':
+            for card0, card1, card2 in combinations(sorted(self.cards), 3):
+                temp_hand = PresidentsHand([card0, card1, card2])
+                temp_hand.validate(print_message=False)
+                if temp_hand.is_triple and temp_hand > hand_to_beat:
+                    return [card.UI_suite_value for card in temp_hand.cards]
+        elif type == 'fullhouse':
+            # First check for a triple that beats the hand to beat's triple.
+            for card0, card1, card2 in combinations(sorted(self.cards), 3):
+                temp_hand = PresidentsHand([card0, card1, card2])
+                temp_hand.validate(print_message=False)
+                if temp_hand.is_triple and temp_hand > hand_to_beat.triple:
+                    # If there is a double use it to create a fullhouse.
+                    return
+
 
 class Spot:
     """
@@ -441,7 +508,7 @@ class PresidentsSpot(Spot):
     # I will explain this later...
     @property
     def can_play_anyhand(self):
-        if isinstance(self.table.last, PresidentsStart):
+        if self.has_3_of_clubs:
             return False
         winning_last = self.table.winning_last
         passes = self.table.passes_on_top
@@ -672,13 +739,12 @@ class PresidentsHand(Hand):
     class for presidents hands
     """
     def __init__(self, cards=[], valid=False):
-        assert len(cards) <= 5, 'PresidentsHands can consist of 5 cards maximum.'
+        if len(cards) > 5:
+            raise RuntimeError('PresidentsHands can consist of 5 cards maximum.')
+        for card0, card1 in combinations(cards, 2):
+            if card0 == card1:
+                raise RuntimeError('All cards in a presidents hand must be unique!')
         Hand.__init__(self, cards)
-        # non-repeating pairwise comparison of cards in hand
-        for i, card0 in enumerate(self[:-1]):
-            for card1 in self[i+1:]:
-                if card0 == card1:
-                    raise RuntimeError('All cards in a presidents hand must be unique!')
         self.valid = valid
         self.winning = False
 
@@ -919,24 +985,28 @@ class Presidents(CardGame):
     # this function
     def play_round(self):
         while True:
+            current_player = self.current_spot.player
             try:
-                pres_in = input(parse('<b,y,>pres> </b,y,>'))
-                pres_in_tokens = pres_in.split()
-                # all shortcuts will be methods of the Player class or one of its subclasses
-                shortcut = pres_in_tokens[0]
-                args = pres_in_tokens[1:]
-                func = self.current_spot.player.func_lookup(shortcut)
-                if not func:
-                    print(f"{shortcut} is not a valid command. Enter 'help' to see your options!")
-                    continue
-                try:
-                    if args:
-                        func(*args)
-                    else:
-                        func()
-                except Exception as err:
-                    print(err)
-                    #raise
+                if not current_player.is_human:
+                    current_player.play_or_pass()
+                else:
+                    pres_in = input(parse('<b,y,>pres> </b,y,>'))
+                    pres_in_tokens = pres_in.split()
+                    # all shortcuts will be methods of the Player class or one of its subclasses
+                    shortcut = pres_in_tokens[0]
+                    args = pres_in_tokens[1:]
+                    func = current_player.func_lookup(shortcut)
+                    if not func:
+                        print(f"{shortcut} is not a valid command. Enter 'help' to see your options!")
+                        continue
+                    try:
+                        if args:
+                            func(*args)
+                        else:
+                            func()
+                    except Exception as err:
+                        print(err)
+                        #raise
                 if self.players_left == 1:
                     self.assign_position(asshole=True)
                     self.announce_position()
@@ -951,8 +1021,7 @@ class Presidents(CardGame):
                 return
             except AssertionError as err:
                 print(err)
-            # except Exception as err:
-            #     print(f"The following error might not make sense, but you might be able to use it to tell what's wrong!\n{err}")
+                raise
 
     def setup_round(self, round_num):
         self.table.clear_cards()
@@ -982,6 +1051,8 @@ class Presidents(CardGame):
             self.assign_position()
             self.announce_position()
         self.next_spot_with_cards()
+        if self.players_left == 1:
+            return
         self.report_turn()
          
     # Iterates the instance spot generator until it hits the first spot with cards.
@@ -994,7 +1065,7 @@ class Presidents(CardGame):
     # Finds the 3 of Clubs, sets the current spot to the one with the 3 of
     # clubs and creates and iterates the next_spot generator to the current player.
     def find_3_of_clubs(self):
-        assert isinstance(self.table.last_played, PresidentsStart), 'Can only find the 3 of clubs at the beginning of the game.'
+        assert isinstance(self.table.last, PresidentsStart), 'Can only find the 3 of clubs at the beginning of the game.'
         for spot in self.table.spots:
             # remember, cards are zero-indexed in the backend and database, c2 is the 3 of Clubs
             if Card('c', '2') in spot.cards:
@@ -1074,6 +1145,7 @@ def quick_game(*names):
         print('Who do you want to play presidents with?')
         for _ in range(3):
             names.append(input('Other Name: '))
-    for name in names:
-        t.add_player(PresidentsPlayer(name))
+    # t.add_player(PresidentsPlayer(names[0]))
+    for name in names[:]:
+        t.add_player(AIPresidentsPlayer(name))
     t.start_game()
