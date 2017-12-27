@@ -17,7 +17,7 @@ cd presidents
 make env
 source activate presidents
 ~~~
-4. Start a round of Single Player Command Line presidents (where you play all 4 players! Wow!) by entering the following into a terminal:
+4. Start a round of Single Player Command Line presidents (where the AI is really dumb!) by entering the following into a terminal:
 ~~~
 python spcl_presidents.py
 ~~~
