@@ -7,15 +7,17 @@ from ansimarkup import parse
 
 class Card:
     """
-    A general class for cards in a standard 52-card deck. These cards need not be
-    tied to any particular card game but some of their methods depend on the game
-    they are being used for, namely, comparing cards with each other.  
+    A general class for cards in a standard 52-card deck. These cards
+    need not be tied to any particular card game but some of their
+    methods depend on the game they are being used for, namely,
+    comparing cards with each other.  
     """
     suite_dict = {'c': 'Clubs', 'd': 'Diamonds', 'h': 'Hearts', 's': 'Spades'}
-    # Note that the card values are zero-indexed to avoid having to store cards
-    # with value 10 with an additional character. Although this slightly confusing
-    # convention (you'll get used to it) is present in the backend and database,
-    # all implementations of UI will present card values as one would expect.
+    # Note that the card values are zero-indexed to avoid having to
+    # store cards with value 10 with an additional character. Although
+    # this slightly confusing convention (you'll get used to it) is
+    # present in the backend and database, all implementations of UI
+    # will present card values as one would expect.
     value_dict = {'1': '2', '2': '3', '3': '4', '4': '5', '5': '6', '6': '7',
                   '7': '8', '8': '9', '9': '10', 'j': 'Jack', 'q': 'Queen',
                   'k': 'King', 'a': 'Ace'}
@@ -50,7 +52,7 @@ class Card:
     def UI_suite_value(self):
         suite, value = self.suite, self.value
         return suite + Card.BEDB_to_UI_dict[value]
-    
+
     # Replace these methods if this basic equality definition must be expanded
     # or simply does not apply.
     def __eq__(self, other):
@@ -58,7 +60,7 @@ class Card:
 
     def __ne__(self, other):
         return not self == other
-    
+
     # All other card comparison methods must be provided by the subclass of the
     # Card class corresponding to the game being played as rules dictating the
     # value of cards varies per card game.
@@ -1043,6 +1045,7 @@ class Presidents(CardGame):
     # this function
     def play_round(self):
         while True:
+            current_player = self.current_spot.player
             try:
                 if not self.current_player.is_human:
                     self.current_player.play_or_pass()
