@@ -37,7 +37,7 @@ class Card:
         if suite not in Card.suite_dict:
             raise ValueError(
                 "The only suites in the standard 52-card deck are: 'c', 'd', "
-                ""'h', 's'.")
+                "'h', 's'.")
         if value not in Card.value_dict:
             raise ValueError(
                 'All values are zero-indexed, e.g. use 9 for 10, etc.')
