@@ -1,16 +1,16 @@
 import random
 import readline
 from itertools import cycle, combinations
-from helpers import main
 from ansimarkup import parse
+from helpers import main
 
 
 class Card:
-    """
-    A general class for cards in a standard 52-card deck. These cards
-    need not be tied to any particular card game but some of their
-    methods depend on the game they are being used for, namely,
-    comparing cards with each other.  
+    """A general class for cards in a standard 52-card deck.
+    
+    These cards need not be tied to any particular card game but some of
+    their methods depend on the game they are being used for, namely,
+    comparing cards with each other.
     """
     suite_dict = {'c': 'Clubs', 'd': 'Diamonds', 'h': 'Hearts', 's': 'Spades'}
     # Note that the card values are zero-indexed to avoid having to
@@ -28,13 +28,19 @@ class Card:
 
     def __init__(self, suite, value):
         if not isinstance(suite, str):
-            raise TypeError("Suites are the single letter strings: 'c', 'd', 'h', 's'.")
+            raise TypeError(
+                "Suites are the single letter strings: 'c', 'd', 'h', 's'.")
         if not isinstance(value, str):
-            raise TypeError('Values must be given as strings, even for cards with numeric values.')
+            raise TypeError(
+                'Values must be given as strings, even for cards with numeric '
+                'values.')
         if suite not in Card.suite_dict:
-            raise ValueError("The only suites in the standard 52-card deck are: 'c', 'd', 'h', 's'.")
+            raise ValueError(
+                "The only suites in the standard 52-card deck are: 'c', 'd', "
+                ""'h', 's'.")
         if value not in Card.value_dict:
-            raise ValueError('All values are zero-indexed, e.g. use 9 for 10, etc.')
+            raise ValueError(
+                'All values are zero-indexed, e.g. use 9 for 10, etc.')
         self.suite = suite
         self.value = value
         self.suite_value = self.suite + self.value
@@ -53,28 +59,36 @@ class Card:
         suite, value = self.suite, self.value
         return suite + Card.BEDB_to_UI_dict[value]
 
-    # Replace these methods if this basic equality definition must be expanded
-    # or simply does not apply.
+    # Replace these methods if this basic equality definition must be 
+    # expanded or simply does not apply.
     def __eq__(self, other):
         return self.same_card(other)
 
     def __ne__(self, other):
         return not self == other
 
-    # All other card comparison methods must be provided by the subclass of the
-    # Card class corresponding to the game being played as rules dictating the
-    # value of cards varies per card game.
+    # All other card comparison methods must be provided by the subclass
+    # of the Card class corresponding to the game being played as rules 
+    # dictating the value of cards varies per card game.
     def __lt__(self, other):
-        raise NotImplementedError('The < method must be provided by the subclass of the Card class corresponding to the game being played.')
+        raise NotImplementedError(
+            'The < method must be provided by the subclass of the Card class '
+            'corresponding to the game being played.')
 
     def __le__(self, other):
-        raise NotImplementedError('The <= method must be provided by the subclass of the Card class corresponding to the game being played.')
+        raise NotImplementedError(
+            'The <= method must be provided by the subclass of the Card class '
+            'corresponding to the game being played.')
 
     def __ge__(self, other):
-        raise NotImplementedError('The > method must be provided by the subclass of the Card class corresponding to the game being played.')
+        raise NotImplementedError(
+            'The > method must be provided by the subclass of the Card class '
+            'corresponding to the game being played.')
 
     def __gt__(self, other):
-        raise NotImplementedError('The >= method must be provided by the subclass of the Card class corresponding to the game being played.')
+        raise NotImplementedError(
+            'The >= method must be provided by the subclass of the Card class '
+            'corresponding to the game being played.')
 
     def __repr__(self):
         suite = self.suite_dict[self.suite]
@@ -88,20 +102,19 @@ class Card:
 
 
 class PresidentsCard(Card):
+    """A class for presidents cards, mainly dictating card comparisons.
     """
-    A class for presidents cards, mainly dictating card comparisons.
-    """
-    # In order to compare a card with another, we need only compare each card's
-    # position in the President's card order. The same follows for the greater
-    # than method.
+    # In order to compare a card with another, we need only compare each
+    # card's position in the President's card order. The same follows
+    # for the greater than method.
     def __lt__(self, other):
         return Presidents.order.index(self) < Presidents.order.index(other)
 
     def __gt__(self, other):
         return Presidents.order.index(self) > Presidents.order.index(other)
 
-    # Calls to <= and >= should never be made as they don't make sense in the
-    # context of presidents
+    # Calls to <= and >= should never be made as they don't make sense
+    # in the context of presidents
     def __le__(self, other):
         raise AssertionError('A <= call was made by a PresidentsCard.')
 
@@ -124,11 +137,13 @@ class Deck:
                     # 4 suites: clubs, diamonds, hearts, spades
                     for i in ['c', 'd', 'h', 's']
                     # 13 values: 2-10 (zero-indexed) and jack, queen, king, ace
-                    for j in ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'j', 'q', 'k', 'a']]
+                    for j in ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'j',
+                              'q', 'k', 'a']]
         else:
             for card in cards:
                 if not isinstance(card, Card):
-                    raise TypeError('All cards in a deck must be Card objects.')
+                    raise TypeError(
+                        'All cards in a deck must be Card objects.')
             self.cards = cards
     
     def shuffle(self):
@@ -156,21 +171,27 @@ class Player:
         # In the future, this should send a request to the table to add the
         # player if there is space for them.
         if not isinstance(spot, Spot):
-            raise TypeError('Players can only enter instances of the Spot class.')
+            raise TypeError(
+                'Players can only enter instances of the Spot class.')
         spot.add_player(self)
 
     def leave_spot(self):
         # In the future, this should send a request to the table to remove
         # the player from the table (at the next most appropriate time.)
         if not self.spot:
-            raise RuntimeError('Player cannot leave a spot if they are not in one.')
+            raise RuntimeError(
+                'Player cannot leave a spot if they are not in one.')
         self.spot.remove_player()
 
     def create_hand(self):
-        raise NotImplementedError('The create_hand method must be provided by the subclass of the Player class corresponding to the game being played.')
+        raise NotImplementedError(
+            'The create_hand method must be provided by the subclass of the '
+            'Player class corresponding to the game being played.')
 
     def play_hand(self):
-        raise NotImplementedError('The create_hand method must be provided by the subclass of the Player class corresponding to the game being played.')
+        raise NotImplementedError(
+            'The create_hand method must be provided by the subclass of the '
+            'Player class corresponding to the game being played.')
 
     @property
     def table(self):
@@ -193,7 +214,8 @@ class Player:
     @property
     def all(self):
         if not self.spot:
-            raise RuntimeError('Players must be in a spot to access hands and cards.')
+            raise RuntimeError(
+                'Players must be in a spot to access hands and cards.')
         return self.spot.all
 
     def __repr__(self):
@@ -225,34 +247,39 @@ class PresidentsPlayer(Player):
         }
         
     def create_hand(self, *cards):
-        # *cards should be comma separated UI suite_value strings (i.e the ones
-        # that are NOT zero-indexed) of the cards desired in the hand.
+        # *cards should be comma separated UI suite_value strings (i.e
+        # the ones that are NOT zero-indexed) of the cards desired in
+        # the hand.
         if not self.spot:
             raise RuntimeError('Player must be in a spot to create a hand.')
-        # Convert the UI suite_value strings to backend/database suite_value
-        # strings; this will KeyError if the the card value given is not valid.
-        #print(cards)
+        # Convert the UI suite_value strings to backend/database
+        # suite_value strings; this will KeyError if the the card value 
+        # given is not valid.
         try:
-            # Could not use list comprehension because card assignment is lost
-            # and exception requires card to be assigned.
+            # Could not use list comprehension because card assignment
+            # is lost and exception requires card to be assigned.
             temp_cards = []
             for card in cards:
                 temp_cards.append(card[0]+Card.UI_to_BEDB_dict[card[1:]])
-            #print(cards)
         except:
-            raise ValueError(f"{card[1:]} is not a valid card value; they are '2'-'10', 'j', 'q', 'k', 'a'.")
+            raise ValueError(
+                f"{card[1:]} is not a valid card value; they are '2'-'10', 'j'"
+                 ", 'q', 'k', 'a'.")
         else:
             cards = temp_cards
-        # Convert suite_value strings to Card objects; this will ValueError if
-        # if the card suite given is not valid; error message is included.
+        # Convert suite_value strings to Card objects; this will
+        # ValueError if if the card suite given is not valid; error
+        # message is included.
         cards_objs = []
         for suite, value in cards:
             cards_objs.append(PresidentsCard(suite, value))
-        # Check that the player has the cards they want to make a hand using.
+        # Check that the player has the cards they want to make a hand 
+        # using.
         desired_cards = []
         for card in cards_objs:
             if card not in self.cards:
-                raise RuntimeError('You do not have at least one of these cards!')
+                raise RuntimeError(
+                    f'You do not have the {card}')
             else:
                 desired_cards.append(card)
         desired_hand = PresidentsHand(desired_cards)
@@ -261,17 +288,19 @@ class PresidentsPlayer(Player):
             desired_hand.validate(print_message=False)
         else:
             desired_hand.validate(print_message=True)
-        # Only valid hands should be added to the player('s spot)'s hands
+        # Only valid hands should be added to the player('s spot)'s
+        # hands
         if desired_hand.valid:
             self.hands.append(desired_hand)
         
     def play_hand(self, hand_ind):
         if not self.spot:
             raise RuntimeError('Player must be in a spot to play a hand.')
-        # Allow hands to be single card, UI suite_value strings and do the hand
-        # building automatically
+        # Allow hands to be single card, UI suite_value strings and do 
+        # the hand building automatically
         if isinstance(hand_ind, str):
-            # Check if hand_ind is a string with a valid suite for the first letter
+            # Check if hand_ind is a string with a valid suite for the
+            # first letter
             if hand_ind[0] in Presidents.suite_order:
                 self.create_hand(hand_ind)
                 # After creating the single card hand, try to play it.
@@ -284,20 +313,25 @@ class PresidentsPlayer(Player):
                 return
         hand_ind = self.hand_ind_check(hand_ind)
         hand_to_play = self.hands[hand_ind]
-        # if the hand wanting to played is not valid, attempt to validate it
-        assert hand_to_play.valid, 'Invalid hands should not be able to get to this point.'
+        # if the hand wanting to played is not valid, attempt to
+        # validate it
+        assert hand_to_play.valid, \
+            'Invalid hands should not be able to get to this point.'
         last_played = self.table.last_played
         passes = self.table.passes_on_top
         if self.has_3_of_clubs:
             if not Card('c','2') in hand_to_play:
-                raise RuntimeError('The starting hand must contain the 3 of Clubs!')
+                raise RuntimeError(
+                    'The starting hand must contain the 3 of Clubs!')
             self.force_play_hand(hand_ind, hand_to_play)
         else:
             if self.can_play_anyhand:
                 self.force_play_hand(hand_ind, hand_to_play)
             else:
                 if hand_to_play < last_played:
-                    raise RuntimeError(f'{hand_to_play.cards} cannot beat {last_played.cards}.')
+                    raise RuntimeError(
+                        f'{hand_to_play.cards} cannot beat '
+                         '{last_played.cards}.')
                 self.force_play_hand(hand_ind, hand_to_play)
 
     def force_play_hand(self, hand_ind, hand_to_play=None):
@@ -369,29 +403,27 @@ class PresidentsPlayer(Player):
             else:
                 print(f'What you have to beat: {self.table.last_played.cards}')
         else:
-            print(f"{which} is not a valid argument for view. Enter 'help' to see your options!")
+            print(
+                f"{which} is not a valid argument for view. Enter 'help' to "
+                 "see your options!")
 
     def help(self):
         for shortcut, info in self.func_dict.items():
             print(f'{shortcut.ljust(10)}: {info[1].rjust(10)}')
 
     def func_lookup(self, shortcut):
-        # returns None if the function is not in the player function dictionary
+        # returns None if the function is not in the player function
+        # dictionary
         func = self.func_dict.get(shortcut)
         if func:
             return func[0]
 
-    # I don't really like this but I'm not sure how else the AI will know it's
-    # its turn...(yet!)
-    @property
-    def on_turn(self):
-        return self is self.table.game.current_spot.player
-
 
 class AIPresidentsPlayer(PresidentsPlayer):
-    """
-    class for a super basic AI presidents player; this AI simply checks its
-    cards for anything that can beat the last hand and plays it no matter what
+    """Class for a super basic AI presidents player.
+    
+    This AI simply checks its cards for anything that can beat the last
+    hand and plays it no matter what.
     """
     is_human = False
     
@@ -436,7 +468,8 @@ class AIPresidentsPlayer(PresidentsPlayer):
         return False
     
     def higher_double(self, hand_to_beat):
-        # Checking all pairwise combinations of cards in hand for a double. 
+        # Checking all pairwise combinations of cards in hand for a
+        # double. 
         for card0, card1 in combinations(sorted(self.cards), 2):
             temp_hand = PresidentsHand([card0, card1])
             temp_hand.validate(print_message=False)
@@ -453,7 +486,8 @@ class AIPresidentsPlayer(PresidentsPlayer):
         return False
 
     def higher_fullhouse(self, hand_to_beat):
-         # First check for a triple that beats the hand to beat's triple.
+         # First check for a triple that beats the hand to beat's
+         # triple.
         for card0, card1, card2 in combinations(sorted(self.cards), 3):
             temp_hand = PresidentsHand([card0, card1, card2])
             temp_hand.validate(print_message=False)
@@ -495,8 +529,7 @@ class AIPresidentsPlayer(PresidentsPlayer):
         return False
 
 class Spot:
-    """
-    A class for spots at a table.
+    """A class for spots at a table.
     """
     def __init__(self, table):
         if not isinstance(table, Table):
@@ -512,15 +545,18 @@ class Spot:
 
     def add_player(self, player):
         if self.player:
-            raise RuntimeError('Player must be removed from spot before another is added.')
+            raise RuntimeError(
+                'Player must be removed from spot before another is added.')
         if not isinstance(player, Player):
-            raise TypeError('Only instances of the Player class can be added to a spot.')
+            raise TypeError(
+                'Only instances of the Player class can be added to a spot.')
         self.player = player
         player.spot = self
 
     def remove_player(self):
         if not self.player:
-            raise RuntimeError('Player cannot be removed if the spot does not have one.')
+            raise RuntimeError(
+                'Player cannot be removed if the spot does not have one.')
         self.player.spot = None
         self.player = None
 
@@ -555,7 +591,8 @@ class PresidentsSpot(Spot):
 
     def add_player(self, player):
         if not isinstance(player, PresidentsPlayer):
-            raise TypeError('Only PresidentsPlayers can hop into PresidentsSpots.')
+            raise TypeError(
+                'Only PresidentsPlayers can hop into PresidentsSpots.')
         Spot.add_player(self, player)
 
     # I will explain this later...
@@ -575,7 +612,8 @@ class PresidentsSpot(Spot):
         else:
             return False
 
-    # Removes all cards and hands with any intersection with the hand being played.
+    # Removes all cards and hands with any intersection with the hand
+    # being played.
     def remove_intersecting(self, hand_to_play):
         for hand_card in hand_to_play:
             # Remove all hands containing any card in the hand being played
