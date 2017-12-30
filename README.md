@@ -15,7 +15,7 @@ cd presidents
 3. Set up the appropriate environment by entering the following in a terminal:
 ~~~
 make env
-source activate presidents
+conda activate presidents
 ~~~
 4. Start a round of Single Player Command Line presidents (where the AI is really dumb!) by entering the following into a terminal:
 ~~~
