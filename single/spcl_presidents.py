@@ -82,8 +82,7 @@ class PresidentsPlayer(Player):
         desired_cards = []
         for card in cards_objs:
             if card not in self.cards:
-                raise RuntimeError(
-                    f'You do not have the {card}')
+                raise RuntimeError(f'You do not have the {card}')
             else:
                 desired_cards.append(card)
         desired_hand = PresidentsHand(desired_cards)
@@ -308,9 +307,8 @@ class AIPresidentsPlayer(PresidentsPlayer):
                         temp_double = temp_hand
                         temp_fullhouse = temp_triple + temp_double
                         temp_fullhouse.validate(print_message=False)
-                        if temp_fullhouse > hand_to_beat:
-                            return [card.UI_suite_value
-                                    for card in temp_fullhouse.cards]
+                        return [card.UI_suite_value
+                                for card in temp_fullhouse.cards]
         return False
 
     def higher_straight(self, hand_to_beat):
@@ -571,8 +569,8 @@ class PresidentsHand(Hand):
         assert len(self) == 5, 'bombs consist of exactly 5 cards'
         # sort the cards by value and create a hand using them
         sorted_hand = PresidentsHand(sorted(self))
-        # since the cards are sorted by value, then either the first or last
-        # four cards being a quad will mean a bomb
+        # since the cards are sorted by value, then either the first or
+        # last four cards being a quad will mean a bomb
         first_four = sorted_hand[0:4]
         last_four = sorted_hand[1:5]
         if first_four.is_quad:
