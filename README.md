@@ -8,9 +8,9 @@ If you are on Windows (don't worry, I am too), set up [Windows Subsystem for Lin
 ~~~
 git clone https://github.com/gitavi/presidents.git
 ~~~
-3. Change directory to `presidents` by entering the following in a terminal:
+3. Change directory to `presidents/single` by entering the following in a terminal:
 ~~~
-cd presidents
+cd presidents/single
 ~~~
 3. Set up the appropriate environment by entering the following in a terminal:
 ~~~
