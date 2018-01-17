@@ -8,20 +8,25 @@ If you are on Windows (don't worry, I am too), set up [Windows Subsystem for Lin
 ~~~
 git clone https://github.com/gitavi/presidents.git
 ~~~
-3. Change directory to `presidents/single` by entering the following in a terminal:
+3. Change directory to `presidents` by entering the following in a terminal:
 ~~~
-cd presidents/single
+cd presidents
 ~~~
-3. Set up the appropriate environment by entering the following in a terminal:
+4. Set up the appropriate environment by entering the following in a terminal:
 ~~~
 make env
 conda activate presidents
 ~~~
-4. Start a round of Single Player Command Line presidents (where the AI is really dumb!) by entering the following into a terminal:
+5. Change directory to `presidents/single` by entering the following in a terminal:
+~~~
+cd single
+~~~
+
+6. Start a round of Single Player Command Line presidents (where the AI is really dumb!) by entering the following into a terminal:
 ~~~
 python spcl_presidents.py
 ~~~
-5. Whenever you come back to play some more (hopefully often!), run the following in your local copy of the repository to update your game (note, this might actually prevent you from playing the game if the update breaks the game, but it won't be broken for long!):
+7. Whenever you come back to play some more (hopefully often!), run the following in your local copy of the repository to update your game (note, this might actually prevent you from playing the game if the update breaks the game, but it won't be broken for long!):
 ~~~
 git pull
 ~~~
