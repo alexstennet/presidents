@@ -10,12 +10,21 @@ class LoginForm(FlaskForm):
     room = StringField('Room', validators=[Required()])
     submit = SubmitField('Enter Game')
 
-login = Blueprint('login', __name__)
+login_blueprint = Blueprint('login_blueprint', __name__)
 
-@login.route('/login', methods=['GET', 'POST'])
-def login_page():
+@login_blueprint.route('/')
+def base():
+    return redirect(url_for('login_blueprint.login'))
+
+@login_blueprint.route('/login', methods=['GET', 'POST'])
+def login():
     form = LoginForm()
     if form.validate_on_submit():
         session['name'] = form.name.data
         session['room'] = form.room.data
-        return 
+        return redirect(url_for('login_blueprint.game'))
+    return render_template('login/login.html', form=form)
+
+@login_blueprint.route('/game')
+def game():
+    return redirect(url_for('login_blueprint.login'))
