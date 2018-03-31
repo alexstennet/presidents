@@ -12,7 +12,7 @@ spec = [
 combo_dict = 0
 
 combo_ids = dict(
-    np.arange(start=0, stop=7, dtype=np.uint8),
+    np.arange(0, 7, dtype=np.uint8),
     {"not a valid combo", "single", "double", "triple", "fullhouse",
      "straight", "bomb"}
 )
