@@ -1,6 +1,7 @@
 import numpy as np
 from numba import jitclass
 from numba import uint8
+import deepdish as dd
 
 # jitclass specification
 spec = [
