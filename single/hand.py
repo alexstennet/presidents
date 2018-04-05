@@ -1,30 +1,38 @@
 import numpy as np
-from numba import jitclass
-from numba import uint8
 import deepdish as dd
 
-# jitclass specification
-spec = [
-    ('cards', uint8[:]),
-    ('combo', uint8)
-]
 
 # hash table for identifying combos
-combo_dict = 0
+combo_dict = dd.io.load("combo_dict.h5")
 
-combo_ids = dict(
-    np.arange(0, 7, dtype=np.uint8),
-    {"not a valid combo", "single", "double", "triple", "fullhouse",
-     "straight", "bomb"}
-)
+id_dict = {
+    0: "empty hand",  # i.e. [0, 0, 0, 0, 0]
+    11: "one card; valid single hand",  # e.g. [0, 0, 0, 0, 1]
+    20: "two cards; invalid double hand",  # e.g. [0, 0, 0, 1, 52]
+    21: "two cards; valid double hand",  # e.g. [0, 0, 0, 1, 2]
+    30: "three cards; invalid triple hand",  # e.g. [0, 0, 1, 2, 52]
+    31: "three cards; valid triple hand",  # e.g. [0, 0, 1, 2, 3]
+    40: "four cards; invalid hand",  # e.g. [0, 1, 2, 3, 4]
+    50: "five cards; invalid five card hand",  # e.g. [1, 2, 3, 5, 52]
+    51: "five cards; valid fullhouse hand",  # e.g. [1, 2, 3, 51, 52]
+    52: "five cards; valid straight hand",  # e.g. [1, 5, 9, 13, 17]
+    53: "five cards; valid bomb hand",  # e.g. [1, 49, 50, 51, 52]
+}
+
+# mapping from insertion index to appropriate invalid id
+invalid_id_dict = {
+    -1: 50,
+    0: 40,
+    1: 30,
+    2: 20,
+}
 
 
-@jitclass(spec)
 class Hand:
     """
     Base class for president's hands and the core data structure of
     Presidents. Refactoring from original Hand class found in class
-    Hand. Uses uint8 numpy arrays to represent hands.
+    Hand. Uses numpy arrays to represent hands.
     """
 
     # cards are numbered 1-52
@@ -41,23 +49,76 @@ class Hand:
     # queued cards added in order like honestly just don't like the idea
     # and will most likely just prevent it
 
-    def __init__(self):
-        self.cards = np.zeros(shape=5, dtype=np.uint8)
-        # 0 is no combo, 1 is single, 2 is double, 3 is triple, 4 is
-        # full house, 5 is straight, 6 is bomb
-        self.combo = np.uint8(0)
+    # I have pretty much decided that all operations will be with base
+    # python while the hand container is an uint8 np array because of a
+    # smaller .tostring() -- ok so it seems like the uints are useless
+    # lol
 
-    def __getitem__(self, key):
-        return self.cards[key]
+    def __init__(self, initial_card: int) -> None:
+        """
+        Must be initialized with initial card, i.e. cannot make an empty
+        hand.
+        """
+        self._cards = np.zeros(shape=5, dtype=np.uint8)
+        self._id = 11
+        if initial_card:
+            self[4] = initial_card
 
-    def add(self, card):
+    def __getitem__(self, key: int) -> int:
+        return self._cards[key]
+
+    def __setitem__(self, key: int, value: int) -> None:
+        self._cards[key] = value
+
+    @property
+    def _is_full(self):
+        return self[0] != 0
+
+    @property
+    def _insertion_index(self) -> int:
+        return 4 - self._id // 10
+
+    def _identify(self) -> None:
+        hand_hash = hash(self._cards.tostring())
+        if hand_hash not in combo_dict:
+            # TODO: explain this
+            # this insertion index is pre insertion
+            self._id = invalid_id_dict[self._insertion_index - 1]
+        else:
+            self._id = combo_dict[hand_hash]
+
+    def _add(self, card: int) -> None:
         assert 1 <= card <= 52, "Bug: attempting to add invalid card."
-        if (self[0] != 0):
+        assert card not in self._cards, "Bug: attemping to add duplicate card."
+        if (self._is_full):
             print("Hand is full.")
             return
         else:
-            self[0] = card
-            self.sort()
+            ii = self._insertion_index
+            self[ii] = card
+            self._sort(ii)
+        self._identify()
 
-    def sort(self):
-        self.cards.sort()
+    def _sort(self, index: int) -> None:
+        """
+        Special sorting algorithm -- wow v algorithm
+        runs in big omega 1, big o 4
+        """
+        i = index
+        if i == 4:
+            return
+        elif self[i] > self[i + 1]:
+            self[i], self[i + 1] = self[i + 1], self[i]
+            self._sort(i + 1)
+        else:  # self[i] < self[i + 1]:
+            return
+
+    @property
+    def _combo_id(self):
+        return id_dict[self._id]
+
+    def __repr__(self):
+        return f"Hand({self._cards.__str__()}, {self._id})"
+
+    def __str__(self):
+        return self._cards.__str__() + ": " + self._combo_id

@@ -1,44 +1,38 @@
 from itertools import combinations as it_comb, product as it_prod
 import numpy as np
-from numba import jit
-from numba import void, uint8
 from scipy.special import comb
 import deepdish as dd
+from typing import Dict
 from helpers import main
 
 cards = np.arange(1, 53, dtype=np.uint8)
 suits = cards.reshape(13, 4)
 
-combo_dict = {}
+combo_dict: Dict[int, int] = {}
 
 
-@jit(void())
 def save_combo_dict():
     dd.io.save("combo_dict.h5", combo_dict)
 
 
-@jit(void())
 def populate():
-    # single()
-    # double()
-    # triple()
+    single()
+    double()
+    triple()
     fullhouse()
     # straight()
     # bomb()
 
 
-@jit(void(uint8[:], uint8))
 def add_to_combo_dict(hand, combo):
-    combo_dict[hash(hand.tostring())] = np.uint8(combo)
+    combo_dict[hash(hand.tostring())] = combo
 
 
-@jit(void(uint8[:, :], uint8))
 def add_to_combo_dict_loop(hands, combo):
     for hand in hands:
         add_to_combo_dict(hand, combo)
 
 
-@jit(void())
 def single():
     """
     adds all single hands to the combo dict
@@ -46,10 +40,9 @@ def single():
     number_of_singles = 52
     singles = np.zeros(shape=(number_of_singles, 5), dtype=np.uint8)
     singles[:, 4] = np.arange(1, 53)
-    add_to_combo_dict_loop(singles, 1)
+    add_to_combo_dict_loop(singles, 11)
 
 
-@jit(void())
 def double():
     """
     adds all double hands to the combo dict
@@ -61,10 +54,9 @@ def double():
         doubles_list.extend(it_comb(suit, 2))
     doubles_arr = np.array(doubles_list, dtype=np.uint8)
     doubles[:, 3:5] = doubles_arr
-    add_to_combo_dict_loop(doubles, 2)
+    add_to_combo_dict_loop(doubles, 21)
 
 
-@jit(void())
 def triple():
     """
     adds all triple hands to the combo dict
@@ -76,19 +68,17 @@ def triple():
         triples_list.extend(it_comb(suit, 3))
     triples_arr = np.array(triples_list, dtype=np.uint8)
     triples[:, 2:5] = triples_arr
-    add_to_combo_dict_loop(triples, 3)
+    add_to_combo_dict_loop(triples, 31)
 
 
-@jit(void())
 def fullhouse():
     """
     adds all fullhouse hands to the combo dict
     """
     # combines double triples or triple doubles and adds to combo dict
     def combine_and_add(combos):
-        # hand = np.array(combos[0] + combos[1], dtype=np.uint8)
-        # add_to_combo_dict(hand, 4)
-        pass
+        hand = np.array(combos[0] + combos[1], dtype=np.uint8)
+        add_to_combo_dict(hand, 41)
 
     for suit1, suit2 in it_comb(suits, 2):
         # double triples
@@ -110,4 +100,3 @@ def fullhouse():
 def generate():
     populate()
     save_combo_dict()
-
