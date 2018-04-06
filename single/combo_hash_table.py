@@ -3,34 +3,35 @@ import numpy as np
 from scipy.special import comb
 import deepdish as dd
 from typing import Dict
-from helpers import main
+from helpers import hand_hash main
 
 cards = np.arange(1, 53, dtype=np.uint8)
 suits = cards.reshape(13, 4)
 
-combo_dict: Dict[int, int] = {}
+# hash table for identifying combos
+combo_table: Dict[int, int] = {}
 
 
-def save_combo_dict():
-    dd.io.save("combo_dict.h5", combo_dict)
+def save_combo_table():
+    dd.io.save("combo_table.h5", combo_table)
 
 
 def populate():
-    single()
+    # single()
     double()
-    triple()
-    fullhouse()
+    # triple()
+    # fullhouse()
     # straight()
     # bomb()
 
 
-def add_to_combo_dict(hand, combo):
-    combo_dict[hash(hand.tostring())] = combo
+def add_to_combo_table(hand, id):
+    combo_table[hand_hash(hand.tostring())] = id
 
 
-def add_to_combo_dict_loop(hands, combo):
+def add_to_combo_table_iter(hands, id):
     for hand in hands:
-        add_to_combo_dict(hand, combo)
+        add_to_combo_table(hand, id)
 
 
 def single():
@@ -40,7 +41,8 @@ def single():
     number_of_singles = 52
     singles = np.zeros(shape=(number_of_singles, 5), dtype=np.uint8)
     singles[:, 4] = np.arange(1, 53)
-    add_to_combo_dict_loop(singles, 11)
+    add_to_combo_table_iter(singles, 11)
+    return singles
 
 
 def double():
@@ -54,7 +56,8 @@ def double():
         doubles_list.extend(it_comb(suit, 2))
     doubles_arr = np.array(doubles_list, dtype=np.uint8)
     doubles[:, 3:5] = doubles_arr
-    add_to_combo_dict_loop(doubles, 21)
+    add_to_combo_table_iter(doubles, 21)
+    return doubles
 
 
 def triple():
@@ -68,7 +71,8 @@ def triple():
         triples_list.extend(it_comb(suit, 3))
     triples_arr = np.array(triples_list, dtype=np.uint8)
     triples[:, 2:5] = triples_arr
-    add_to_combo_dict_loop(triples, 31)
+    add_to_combo_table_iter(triples, 31)
+    return triples
 
 
 def fullhouse():
@@ -78,7 +82,7 @@ def fullhouse():
     # combines double triples or triple doubles and adds to combo dict
     def combine_and_add(combos):
         hand = np.array(combos[0] + combos[1], dtype=np.uint8)
-        add_to_combo_dict(hand, 41)
+        add_to_combo_table(hand, 41)
 
     for suit1, suit2 in it_comb(suits, 2):
         # double triples
@@ -99,4 +103,4 @@ def fullhouse():
 @main
 def generate():
     populate()
-    save_combo_dict()
+    save_combo_table()

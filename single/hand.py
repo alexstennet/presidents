@@ -1,30 +1,30 @@
 import numpy as np
 import deepdish as dd
-
+from helpers import hand_hash
 
 # hash table for identifying combos
-combo_dict = dd.io.load("combo_dict.h5")
+combo_table = dd.io.load("combo_table.h5")
 
-id_dict = {
+id_desc_dict = {
     0: "empty hand",  # i.e. [0, 0, 0, 0, 0]
-    11: "one card; valid single hand",  # e.g. [0, 0, 0, 0, 1]
-    20: "two cards; invalid double hand",  # e.g. [0, 0, 0, 1, 52]
-    21: "two cards; valid double hand",  # e.g. [0, 0, 0, 1, 2]
-    30: "three cards; invalid triple hand",  # e.g. [0, 0, 1, 2, 52]
-    31: "three cards; valid triple hand",  # e.g. [0, 0, 1, 2, 3]
-    40: "four cards; invalid hand",  # e.g. [0, 1, 2, 3, 4]
-    50: "five cards; invalid five card hand",  # e.g. [1, 2, 3, 5, 52]
-    51: "five cards; valid fullhouse hand",  # e.g. [1, 2, 3, 51, 52]
-    52: "five cards; valid straight hand",  # e.g. [1, 5, 9, 13, 17]
-    53: "five cards; valid bomb hand",  # e.g. [1, 49, 50, 51, 52]
+    11: "one card: valid single hand",  # e.g. [0, 0, 0, 0, 1]
+    20: "two cards: invalid double hand",  # e.g. [0, 0, 0, 1, 52]
+    21: "two cards: valid double hand",  # e.g. [0, 0, 0, 1, 2]
+    30: "three cards: invalid triple hand",  # e.g. [0, 0, 1, 2, 52]
+    31: "three cards: valid triple hand",  # e.g. [0, 0, 1, 2, 3]
+    40: "four cards: invalid hand",  # e.g. [0, 1, 2, 3, 4]
+    50: "five cards: invalid five card hand",  # e.g. [1, 2, 3, 5, 52]
+    51: "five cards: valid fullhouse hand",  # e.g. [1, 2, 3, 51, 52]
+    52: "five cards: valid straight hand",  # e.g. [1, 5, 9, 13, 17]
+    53: "five cards: valid bomb hand",  # e.g. [1, 49, 50, 51, 52]
 }
 
 # mapping from insertion index to appropriate invalid id
 invalid_id_dict = {
-    -1: 50,
-    0: 40,
-    1: 30,
     2: 20,
+    3: 30,
+    4: 40,
+    5: 50,
 }
 
 
@@ -71,7 +71,7 @@ class Hand:
         self._cards[key] = value
 
     @property
-    def _is_full(self):
+    def _is_full(self) -> bool:
         return self[0] != 0
 
     @property
@@ -79,13 +79,12 @@ class Hand:
         return 4 - self._id // 10
 
     def _identify(self) -> None:
-        hand_hash = hash(self._cards.tostring())
-        if hand_hash not in combo_dict:
-            # TODO: explain this
-            # this insertion index is pre insertion
-            self._id = invalid_id_dict[self._insertion_index - 1]
+        hh = hand_hash(self)
+        if hh not in combo_table:
+            num_cards = 5 - self._insertion_index
+            self._id = invalid_id_dict[num_cards]
         else:
-            self._id = combo_dict[hand_hash]
+            self._id = combo_table[hh]
 
     def _add(self, card: int) -> None:
         assert 1 <= card <= 52, "Bug: attempting to add invalid card."
@@ -114,11 +113,11 @@ class Hand:
             return
 
     @property
-    def _combo_id(self):
-        return id_dict[self._id]
+    def _id_desc(self) -> str:
+        return id_desc_dict[self._id]
 
-    def __repr__(self):
-        return f"Hand({self._cards.__str__()}, {self._id})"
+    def __repr__(self) -> str:
+        return f"Hand({self._cards}; {self._id_desc})"
 
-    def __str__(self):
-        return self._cards.__str__() + ": " + self._combo_id
+    def __hash__(self) -> int:
+        return hand_hash(self._cards)

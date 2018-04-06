@@ -1,5 +1,14 @@
 import inspect
 import sys
+import numpy as np
+from xxhash import xxh32
+
+
+def hand_hash(hand: np.ndarray) -> int:
+    """
+    hand should be a uint8 np array
+    """
+    return xxh32(hand.tostring()).intdigest()
 
 
 def main(fn):
