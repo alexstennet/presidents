@@ -9,12 +9,12 @@ hand_table = dd.io.load("hand_table.h5")
 id_desc_dict = {
     0: "empty hand",  # i.e. [0, 0, 0, 0, 0]; should never persist
     11: "one card: single",  # e.g. [0, 0, 0, 0, 1]
-    20: "two cards: invalid",  # e.g. [0, 0, 0, 1, 52]
+    20: "two cards: invalid hand",  # e.g. [0, 0, 0, 1, 52]
     21: "two cards: double",  # e.g. [0, 0, 0, 1, 2]
-    30: "three cards: invalid",  # e.g. [0, 0, 1, 2, 52]
+    30: "three cards: invalid hand",  # e.g. [0, 0, 1, 2, 52]
     31: "three cards: triple",  # e.g. [0, 0, 1, 2, 3]
-    40: "four cards: invalid",  # e.g. [0, 1, 2, 3, 4]
-    50: "five cards: invalid",  # e.g. [1, 2, 3, 5, 52]
+    40: "four cards: invalid hand",  # e.g. [0, 1, 2, 3, 4]
+    50: "five cards: invalid hand",  # e.g. [1, 2, 3, 5, 52]
     51: "five cards: fullhouse",  # e.g. [1, 2, 3, 51, 52]
     52: "five cards: straight",  # e.g. [1, 5, 9, 13, 17]
     53: "five cards: bomb",  # e.g. [1, 49, 50, 51, 52]
@@ -61,8 +61,12 @@ class Hand:
         hand.
 
         Right now, the way this is set up is for individual selection of
-        cards in a gui where the user would click on a card to start
-        building a hand and have the 
+        cards in a gui where the player would click on a card to start
+        building a hand and have the validity (whether it is a double, 
+        triple, bomb, etc.) of the hand update dynamically.
+
+        If the player unselects all cards, the empty hand should not
+        persist.
         """
         self._cards = np.zeros(shape=5, dtype=np.uint8)
         self._id = 11
@@ -84,7 +88,7 @@ class Hand:
         return 4 - self._id // 10
 
     def _identify(self) -> None:
-        hh = hand_hash(self)
+        hh = hash(self)
         if hh not in hand_table:
             num_cards = 5 - self._insertion_index
             self._id = invalid_id_dict[num_cards]
@@ -107,6 +111,12 @@ class Hand:
         """
         Special sorting algorithm -- wow v algorithm
         runs in big omega 1, big o 4
+        TODO: calculate average worst case runtimes with random
+              insertions into hands with 1, 2, 3, and 4 cards in a
+              jupyter notebook
+
+              once I have actual user data, can also present average
+              empirical runtimes.
         """
         i = index
         if i == 4:  # inserted card has reached the last index

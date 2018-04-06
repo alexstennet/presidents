@@ -1,107 +1,111 @@
 import numpy as np
 import deepdish as dd
 
-from itertools import combinations as it_comb, product as it_prod
-from scipy.special import comb
+from itertools import combinations as comb
 from typing import Dict
 from helpers import hand_hash, main
 
+
 cards = np.arange(1, 53, dtype=np.uint8)
 suits = cards.reshape(13, 4)
+suit_combs = comb(suits, 2)
 
 # hash table for identifying combos
 hand_table: Dict[int, int] = {}
 
 
-def save_hand_table():
+def _save_hand_table() -> None:
     dd.io.save("hand_table.h5", hand_table)
 
 
-def populate():
-    single()
-    double()
-    triple()
-    fullhouse()
-    # straight()
-    # bomb()
-
-
-def add_to_hand_table(hand, id):
+def _add_to_hand_table(hand, id) -> None:
     hand_table[hand_hash(hand)] = id
 
 
-def add_to_hand_table_iter(hands, id):
+def _add_to_hand_table_iter(hands, id) -> None:
     for hand in hands:
-        add_to_hand_table(hand, id)
+        _add_to_hand_table(hand, id)
 
 
-def single():
-    """
-    adds all single hands to the combo dict
-    """
-    number_of_singles = 52
-    singles = np.zeros(shape=(number_of_singles, 5), dtype=np.uint8)
-    singles[:, 4] = np.arange(1, 53)
-    add_to_hand_table_iter(singles, 11)
-    return singles
+def _add_all() -> None:
+    _add_singles()
+    _add_doubles()
+    _add_triples()
+    _add_fullhouses()
+    # _add_straight()
+    _add_bombs()
 
 
-def double():
+def _add_singles() -> None:
     """
-    adds all double hands to the combo dict
+    adds all single hands to the hand table
     """
-    number_of_doubles = 13 * comb(4, 2, exact=True)
-    doubles = np.zeros(shape=(number_of_doubles, 5), dtype=np.uint8)
-    doubles_list = []
+    singles = np.zeros(shape=(52, 5), dtype=np.uint8)
+    singles[:, 4] = range(1, 53)
+    _add_to_hand_table_iter(singles, 11)
+
+
+def _add_doubles() -> None:
+    """
+    adds all double hands to the hand table
+    """
+    doubles = np.zeros(shape=(6, 5), dtype=np.uint8)  # (4 C 2) = 6
     for suit in suits:
-        doubles_list.extend(it_comb(suit, 2))
-    doubles_arr = np.array(doubles_list, dtype=np.uint8)
-    doubles[:, 3:5] = doubles_arr
-    add_to_hand_table_iter(doubles, 21)
-    return doubles
+        doubles[:, 3:5] = list(comb(suit, 2))
+        _add_to_hand_table_iter(doubles, 21)
 
 
-def triple():
+def _add_triples() -> None:
     """
-    adds all triple hands to the combo dict
+    adds all triple hands to the hand table
     """
-    number_of_triples = 13 * comb(4, 3, exact=True)
-    triples = np.zeros(shape=(number_of_triples, 5), dtype=np.uint8)
-    triples_list = []
+    triples = np.zeros(shape=(4, 5), dtype=np.uint8)  # (4 C 3) = 4
     for suit in suits:
-        triples_list.extend(it_comb(suit, 3))
-    triples_arr = np.array(triples_list, dtype=np.uint8)
-    triples[:, 2:5] = triples_arr
-    add_to_hand_table_iter(triples, 31)
-    return triples
+        triples[:, 2:5] = list(comb(suit, 3))
+        _add_to_hand_table_iter(triples, 31)
 
 
-def fullhouse():
+def _add_fullhouses():
     """
-    adds all fullhouse hands to the combo dict
+    adds all fullhouse hands to the hand table
     """
-    # combines double triples or triple doubles and adds to combo dict
-    def combine_and_add(combos):
-        hand = np.array(combos[0] + combos[1], dtype=np.uint8)
-        add_to_hand_table(hand, 41)
+    fullhouses = np.zeros(shape=(6, 5), dtype=np.uint8)
+    for suit1, suit2 in suit_combs:
+        # double triples, e.g. [1, 2, 50, 51, 52]
+        doubles = list(comb(suit1, 2))
+        triples = comb(suit2, 3)
+        fullhouses[:, 0:2] = doubles
+        for triple in triples:
+            fullhouses[:, 2:5] = triple  # numpy array broadcasting
+            _add_to_hand_table_iter(fullhouses, 51)
 
-    for suit1, suit2 in it_comb(suits, 2):
-        # double triples
-        base_doubles = it_comb(suit1, 2)
-        add_triples = it_comb(suit2, 3)
-        dub_trip = it_prod(base_doubles, add_triples)
-        for d_t in dub_trip:
-            combine_and_add(d_t)
+        # triple doubles, e.g. [1, 2, 3, 51, 52]
+        triples = list(comb(suit1, 3))
+        doubles = comb(suit2, 2)
+        fullhouses[:, 3:5] = doubles
+        for triple in triples:
+            fullhouses[:, 3:5] = triple  # numpy array broadcasting
+            _add_to_hand_table_iter(fullhouses, 51)
 
-        # triple doubles
-        base_triples = it_comb(suit1, 3)
-        add_doubles = it_comb(suit2, 2)
-        trip_dub = it_prod(base_triples, add_doubles)
-        for t_d in trip_dub:
-            combine_and_add(t_d)
+
+def _add_bombs():
+    """
+    adds all bombs to the hand table
+    """
+    bombs = np.zeros(shape=(4, 5), dtype=np.uint8)
+    for suit1, suit2 in suit_combs:
+        # single quads, e.g. [1, 49, 50, 51, 52]
+        bombs[:, 0] = suit1
+        bombs[:, 1:5] = suit2  # numpy array broadcasting
+        _add_to_hand_table_iter(bombs, 53)
+
+        # quad singles, e.g. [1, 2, 3, 4, 52]
+        bombs[:, 0] = suit2
+        bombs[:, 1:5] = suit1  # numpy array broadcasting
+        _add_to_hand_table_iter(bombs, 53)
 
 
 @main
 def generate():
-    populate()
-    save_hand_table()
+    _add_all()
+    _save_hand_table()

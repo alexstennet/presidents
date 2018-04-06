@@ -3,6 +3,5 @@ name: presidents
 dependencies:
   - python
   - numpy
-  - scipy
   - numba
   - deepdish

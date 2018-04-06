@@ -1,7 +1,6 @@
-from combo_hash_table import *
-from hand import *
+from hand import Hand
+from hand_hash_table import suits
 
 
 a = Hand(1)
 a._add(2)
-print(hash(a))
