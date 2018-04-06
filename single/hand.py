@@ -1,22 +1,23 @@
 import numpy as np
 import deepdish as dd
+
 from helpers import hand_hash
 
-# hash table for identifying combos
-combo_table = dd.io.load("combo_table.h5")
+# hash table for identifying hands
+hand_table = dd.io.load("hand_table.h5")
 
 id_desc_dict = {
-    0: "empty hand",  # i.e. [0, 0, 0, 0, 0]
-    11: "one card: valid single hand",  # e.g. [0, 0, 0, 0, 1]
-    20: "two cards: invalid double hand",  # e.g. [0, 0, 0, 1, 52]
-    21: "two cards: valid double hand",  # e.g. [0, 0, 0, 1, 2]
-    30: "three cards: invalid triple hand",  # e.g. [0, 0, 1, 2, 52]
-    31: "three cards: valid triple hand",  # e.g. [0, 0, 1, 2, 3]
-    40: "four cards: invalid hand",  # e.g. [0, 1, 2, 3, 4]
-    50: "five cards: invalid five card hand",  # e.g. [1, 2, 3, 5, 52]
-    51: "five cards: valid fullhouse hand",  # e.g. [1, 2, 3, 51, 52]
-    52: "five cards: valid straight hand",  # e.g. [1, 5, 9, 13, 17]
-    53: "five cards: valid bomb hand",  # e.g. [1, 49, 50, 51, 52]
+    0: "empty hand",  # i.e. [0, 0, 0, 0, 0]; should never persist
+    11: "one card: single",  # e.g. [0, 0, 0, 0, 1]
+    20: "two cards: invalid",  # e.g. [0, 0, 0, 1, 52]
+    21: "two cards: double",  # e.g. [0, 0, 0, 1, 2]
+    30: "three cards: invalid",  # e.g. [0, 0, 1, 2, 52]
+    31: "three cards: triple",  # e.g. [0, 0, 1, 2, 3]
+    40: "four cards: invalid",  # e.g. [0, 1, 2, 3, 4]
+    50: "five cards: invalid",  # e.g. [1, 2, 3, 5, 52]
+    51: "five cards: fullhouse",  # e.g. [1, 2, 3, 51, 52]
+    52: "five cards: straight",  # e.g. [1, 5, 9, 13, 17]
+    53: "five cards: bomb",  # e.g. [1, 49, 50, 51, 52]
 }
 
 # mapping from insertion index to appropriate invalid id
@@ -58,6 +59,10 @@ class Hand:
         """
         Must be initialized with initial card, i.e. cannot make an empty
         hand.
+
+        Right now, the way this is set up is for individual selection of
+        cards in a gui where the user would click on a card to start
+        building a hand and have the 
         """
         self._cards = np.zeros(shape=5, dtype=np.uint8)
         self._id = 11
@@ -80,11 +85,11 @@ class Hand:
 
     def _identify(self) -> None:
         hh = hand_hash(self)
-        if hh not in combo_table:
+        if hh not in hand_table:
             num_cards = 5 - self._insertion_index
             self._id = invalid_id_dict[num_cards]
         else:
-            self._id = combo_table[hh]
+            self._id = hand_table[hh]
 
     def _add(self, card: int) -> None:
         assert 1 <= card <= 52, "Bug: attempting to add invalid card."
@@ -104,12 +109,12 @@ class Hand:
         runs in big omega 1, big o 4
         """
         i = index
-        if i == 4:
+        if i == 4:  # inserted card has reached the last index
             return
-        elif self[i] > self[i + 1]:
-            self[i], self[i + 1] = self[i + 1], self[i]
-            self._sort(i + 1)
-        else:  # self[i] < self[i + 1]:
+        elif self[i] > self[i + 1]:  # inserted card is greater than next
+            self[i], self[i + 1] = self[i + 1], self[i]  # pythonic swap
+            self._sort(i + 1)  # recurse on inserted card's new position
+        else:  # inserted card is less than next, i.e. in the right position
             return
 
     @property
