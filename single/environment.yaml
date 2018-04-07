@@ -3,5 +3,6 @@ name: presidents
 dependencies:
   - python
   - numpy
-  - numba
   - deepdish
+  - pip:
+    - xxhash

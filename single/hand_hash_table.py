@@ -8,7 +8,7 @@ from helpers import hand_hash, main
 
 cards = np.arange(1, 53, dtype=np.uint8)
 suits = cards.reshape(13, 4)
-suit_combs = comb(suits, 2)
+
 
 # hash table for identifying combos
 hand_table: Dict[int, int] = {}
@@ -38,7 +38,7 @@ def _add_all() -> None:
 
 def _add_singles() -> None:
     """
-    adds all single hands to the hand table
+    adds all singles to the hand table
     """
     singles = np.zeros(shape=(52, 5), dtype=np.uint8)
     singles[:, 4] = range(1, 53)
@@ -47,7 +47,7 @@ def _add_singles() -> None:
 
 def _add_doubles() -> None:
     """
-    adds all double hands to the hand table
+    adds all doubles to the hand table
     """
     doubles = np.zeros(shape=(6, 5), dtype=np.uint8)  # (4 C 2) = 6
     for suit in suits:
@@ -57,7 +57,7 @@ def _add_doubles() -> None:
 
 def _add_triples() -> None:
     """
-    adds all triple hands to the hand table
+    adds all triples to the hand table
     """
     triples = np.zeros(shape=(4, 5), dtype=np.uint8)  # (4 C 3) = 4
     for suit in suits:
@@ -65,12 +65,12 @@ def _add_triples() -> None:
         _add_to_hand_table_iter(triples, 31)
 
 
-def _add_fullhouses():
+def _add_fullhouses() -> None:
     """
-    adds all fullhouse hands to the hand table
+    adds all fullhouses to the hand table
     """
     fullhouses = np.zeros(shape=(6, 5), dtype=np.uint8)
-    for suit1, suit2 in suit_combs:
+    for suit1, suit2 in comb(suits, 2):
         # double triples, e.g. [1, 2, 50, 51, 52]
         doubles = list(comb(suit1, 2))
         triples = comb(suit2, 3)
@@ -80,29 +80,30 @@ def _add_fullhouses():
             _add_to_hand_table_iter(fullhouses, 51)
 
         # triple doubles, e.g. [1, 2, 3, 51, 52]
-        triples = list(comb(suit1, 3))
-        doubles = comb(suit2, 2)
+        triples = comb(suit1, 3)
+        doubles = list(comb(suit2, 2))
         fullhouses[:, 3:5] = doubles
         for triple in triples:
-            fullhouses[:, 3:5] = triple  # numpy array broadcasting
+            fullhouses[:, 0:3] = triple  # numpy array broadcasting
             _add_to_hand_table_iter(fullhouses, 51)
 
 
-def _add_bombs():
+def _add_bombs() -> None:
     """
     adds all bombs to the hand table
     """
     bombs = np.zeros(shape=(4, 5), dtype=np.uint8)
-    for suit1, suit2 in suit_combs:
+    for suit1, suit2 in comb(suits, 2):
         # single quads, e.g. [1, 49, 50, 51, 52]
         bombs[:, 0] = suit1
         bombs[:, 1:5] = suit2  # numpy array broadcasting
         _add_to_hand_table_iter(bombs, 53)
 
         # quad singles, e.g. [1, 2, 3, 4, 52]
-        bombs[:, 0] = suit2
-        bombs[:, 1:5] = suit1  # numpy array broadcasting
+        bombs[:, 0:4] = suit1  # numpy array broadcasting
+        bombs[:, 4] = suit2
         _add_to_hand_table_iter(bombs, 53)
+
 
 
 @main

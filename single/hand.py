@@ -69,7 +69,7 @@ class Hand:
     # smaller .tostring() -- ok so it seems like the uints are useless
     # lol
 
-    def __init__(self, initial_card: int) -> None:
+    def __init__(self) -> None:
         """
         Hands always start out empty.
         """
@@ -77,14 +77,20 @@ class Hand:
         self._id = 0
         self._insertion_index = 4
 
+    def __eq__(self, other):
+        return (self._cards == other._cards and
+                self._id == other._id and
+                self._insertion_index == other._insertion_index)
+
     def __getitem__(self, key: Union[int, slice]) -> int:
         return self._cards[key]
 
-    def __setitem__(self, key: Union[int, slice], value: int) -> None:
-        self._cards[key] = value
+    def __setitem__(self, key: Union[int, slice], card: int) -> None:
+        self._cards[key] = card
 
-    def __contains__(self, value: int) -> bool:
-        return value in self._cards
+    def __contains__(self, card: int) -> bool:
+        assert 1 <= card <= 52, "Bug: attempting to find invalid card."
+        return card in self._cards
 
     @property
     def _is_full(self) -> bool:
@@ -134,9 +140,9 @@ class Hand:
         else:  # inserted card is less than next, i.e. in the right position
             return
 
-    def _card_index(self, card) -> int:
-        assert (card in self,
-                "Bug: attempting to find index of card which is not in hand.")
+    def _card_index(self, card: int) -> int:
+        assert card in self, \
+                "Bug: attempting to find index of card which is not in hand."
         return np.where(self._cards == card)[0][0]
 
     def _remove(self, card) -> None:
