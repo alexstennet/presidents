@@ -3,7 +3,7 @@ import deepdish as dd
 
 from itertools import combinations as comb
 from typing import Dict
-from helpers import hand_hash, main
+from utils import hand_hash, cartesian_product_pp, main
 
 
 cards = np.arange(1, 53, dtype=np.uint8)
@@ -18,11 +18,11 @@ def _save_hand_table() -> None:
     dd.io.save("hand_table.h5", hand_table)
 
 
-def _add_to_hand_table(hand, id) -> None:
+def _add_to_hand_table(hand, id: int) -> None:
     hand_table[hand_hash(hand)] = id
 
 
-def _add_to_hand_table_iter(hands, id) -> None:
+def _add_to_hand_table_iter(hands, id: int) -> None:
     for hand in hands:
         _add_to_hand_table(hand, id)
 
@@ -32,13 +32,13 @@ def _add_all() -> None:
     _add_doubles()
     _add_triples()
     _add_fullhouses()
-    # _add_straight()
+    _add_straights()
     _add_bombs()
 
 
 def _add_singles() -> None:
     """
-    adds all singles to the hand table
+    adds all singles to the hand hash table
     """
     singles = np.zeros(shape=(52, 5), dtype=np.uint8)
     singles[:, 4] = range(1, 53)
@@ -47,7 +47,7 @@ def _add_singles() -> None:
 
 def _add_doubles() -> None:
     """
-    adds all doubles to the hand table
+    adds all doubles to the hand hash table
     """
     doubles = np.zeros(shape=(6, 5), dtype=np.uint8)  # (4 C 2) = 6
     for suit in suits:
@@ -57,7 +57,7 @@ def _add_doubles() -> None:
 
 def _add_triples() -> None:
     """
-    adds all triples to the hand table
+    adds all triples to the hand hash table
     """
     triples = np.zeros(shape=(4, 5), dtype=np.uint8)  # (4 C 3) = 4
     for suit in suits:
@@ -67,7 +67,7 @@ def _add_triples() -> None:
 
 def _add_fullhouses() -> None:
     """
-    adds all fullhouses to the hand table
+    adds all fullhouses to the hand hash table
     """
     fullhouses = np.zeros(shape=(6, 5), dtype=np.uint8)
     for suit1, suit2 in comb(suits, 2):
@@ -88,9 +88,19 @@ def _add_fullhouses() -> None:
             _add_to_hand_table_iter(fullhouses, 51)
 
 
+def _add_straights() -> None:
+    """
+    adds all straights to the hand hash table
+    """
+    for i in range(9):
+        group_of_5_suits = suits[i:i + 5]
+        straights = cartesian_product_pp(group_of_5_suits)
+        _add_to_hand_table_iter(straights, 52)
+
+
 def _add_bombs() -> None:
     """
-    adds all bombs to the hand table
+    adds all bombs to the hand hash table
     """
     bombs = np.zeros(shape=(4, 5), dtype=np.uint8)
     for suit1, suit2 in comb(suits, 2):
@@ -103,7 +113,6 @@ def _add_bombs() -> None:
         bombs[:, 0:4] = suit1  # numpy array broadcasting
         bombs[:, 4] = suit2
         _add_to_hand_table_iter(bombs, 53)
-
 
 
 @main
