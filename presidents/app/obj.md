@@ -1,0 +1,1 @@
+1. create barebones main game page where user can select cards and they will pop up and display what type of hand they are.
