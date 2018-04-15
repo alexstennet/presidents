@@ -62,3 +62,33 @@ def on_store(data):
     """
     stores currently selected cards in a hand
     """
+
+
+@socketio.on('joined', namespace='/chat')
+def joined(message):
+    """Sent by clients when they enter a room.
+    A status message is broadcast to all people in the room."""
+    room = session.get('room')
+    join_room(room)
+    # the first argument of the emit corresponds to the first arg in a 
+    # socket.on(...) in the template; basically all this emit is doing
+    # is call the function within the socket.on which take in a para-
+    # meter 'data' with a dict as the value for 'data'
+    emit('status', {'msg': session.get('name') + ' has entered the room.'}, room=room)
+
+
+@socketio.on('text', namespace='/chat')
+def text(message):
+    """Sent by a client when the user entered a new message.
+    The message is sent to all people in the room."""
+    room = session.get('room')
+    emit('message', {'msg': session.get('name') + ':' + message['msg']}, room=room)
+
+
+@socketio.on('left', namespace='/chat')
+def left(message):
+    """Sent by clients when they leave a room.
+    A status message is broadcast to all people in the room."""
+    room = session.get('room')
+    leave_room(room)
+    emit('status', {'msg': session.get('name') + ' has left the room.'}, room=room)

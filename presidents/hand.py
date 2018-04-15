@@ -70,7 +70,7 @@ class Hand(object):
         return card in self._cards
 
     def __repr__(self) -> str:
-        return f"Hand({self._cards}; {self._id_desc})"
+        return f"Hand({self._cards}; {self.id_desc})"
 
     def __eq__(self, other: object) -> bool:
         return (self._cards == other._cards and  # type: ignore
@@ -84,7 +84,7 @@ class Hand(object):
     def __lt__(self, other: "Hand") -> bool:
         if not self._is_comparable(other):
             raise RuntimeError(
-                f"{self._id_desc} cannot be played on {other._id_desc}.")
+                f"{self.id_desc} cannot be played on {other.id_desc}.")
         if self._is_bomb and other._is_bomb:
             return self[1] < other[1]  # second card is always part of the quad
         elif self._is_bomb:
@@ -101,7 +101,7 @@ class Hand(object):
     def __gt__(self, other: "Hand") -> bool:
         if not self._is_comparable(other):
             raise RuntimeError(
-                f"{self._id_desc} cannot be played on {other._id_desc}.")
+                f"{self.id_desc} cannot be played on {other.id_desc}.")
         if self._is_bomb and other._is_bomb:
             return self[1] > other[1]  # second card is always part of the quad
         elif self._is_bomb:
@@ -158,7 +158,7 @@ class Hand(object):
         return 4 - self._insertion_index
 
     @property
-    def _id_desc(self) -> str:
+    def id_desc(self) -> str:
         return id_desc_dict[self._id]
 
     def _is_comparable(self, other: "Hand") -> bool:

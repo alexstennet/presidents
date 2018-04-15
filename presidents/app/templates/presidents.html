@@ -6,7 +6,7 @@
         <script type="text/javascript" charset="utf-8">
             var socket;
             $(document).ready(function(){
-                socket = io.connect('http://' + document.domain + ':' + location.port + '/chat');
+                socket = io.connect('http://' + document.domain + ':' + location.port + '/presidents');
                 socket.on('connect', function() {
                     socket.emit('joined', {});
                 });
@@ -43,10 +43,6 @@
                 // $('5').on('click', function (e) {
                 //     addCard(5);
                 // });
-                
-                function addCard(card) {
-                    socket.emit('singles click', {action: 'add', card: card})
-                }
 
                 $('#text').keypress(function(e) {
                     var code = e.keyCode || e.which;
