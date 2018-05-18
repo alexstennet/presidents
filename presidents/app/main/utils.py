@@ -1,6 +1,7 @@
 import inspect
 import sys
 import numpy as np
+from json import loads
 from itertools import accumulate, repeat, chain
 
 from xxhash import xxh32
@@ -11,6 +12,12 @@ def hand_hash(hand: np.ndarray) -> int:
     hand should be a uint8 np array
     """
     return xxh32(hand.tostring()).intdigest()
+
+def hand_to_json
+
+def json_to_hand(json_hand: str):
+    hand_dict = loads()
+    cards = 
 
 
 def cartesian_product_pp(arrays):

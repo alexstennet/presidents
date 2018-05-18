@@ -7,10 +7,8 @@ from xxhash import xxh32
 
 
 def hand_hash(hand: np.ndarray) -> int:
-    """
-    hand should be a uint8 np array
-    """
-    return xxh32(hand.tostring()).intdigest()
+    return sum([hand[i] * (53 ** (5 - i))  # type: ignore
+                for i in range(5)]).item()
 
 
 def cartesian_product_pp(arrays):

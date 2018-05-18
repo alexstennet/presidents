@@ -1,13 +1,18 @@
+# TODO: remove string annotations after getting python 3.7
+# TODO: test hand trie instead vs. hand hash table
+
 import numpy as np
 import deepdish as dd
 
 from utils.utils import hand_hash
-from typing import Union
+from typing import Dict, Union
+from json import dumps, loads
 from mypy_extensions import NoReturn
 
 # hash table for identifying hands
 hand_table = dd.io.load("hand_table.h5")
 
+# TODO: should this be in the class?
 id_desc_dict = {
     0: "empty hand",  # i.e. [0, 0, 0, 0, 0]
     11: "single",  # e.g. [0, 0, 0, 0, 1]
@@ -31,30 +36,49 @@ class Hand(object):
     hands.
 
     Right now, the way this is set up is for individual selection of
-    cards in a gui where the player would click on a card to start
-    building a hand and have the validity (whether it is a double, 
-    triple, bomb, etc.) of the hand update dynamically.
+    cards in a GUI where the player would click on a card to start
+    building a hand and have the validity (whether it is a double,
+    triple, bomb, etc.) of the hand update dynamically. This also allows
+    the collection of data on individual card additions and removals.
 
-    There will always be an empty hand and that hand can be put into 
-    hand storage if it is a valid non single hand; once a hand is put
-    into storage, a new empty hand will be created. Singles cannot be
-    stored. If a single card is selected, all stored hands containing
-    that card will be highlighted, signifying deletion of the stored
-    hand if the single is played.
+    Singles cannot be stored. If a single card is selected, all stored
+    hands containing that card will be highlighted, signifying deletion
+    of the stored hand(s) if the single is played. The same applies to
+    the selection of stored hands; if a stored hand is selected, all
+    stored hands containing any cards in the selected stored hand will
+    be highlighted...
+
+
+
+    No support for hands with more than 5 cards.
     """
 
-    # not sure where to put support for being able to have more than 5
-    # cards selected in a sort of queue? not sure this should even be
-    # allowed since like if you have seven cards selected and then
-    # remove one of the cards that was actually in the deck are the
-    # queued cards added in order like honestly just don't like the idea
-    # and will most likely just prevent it but don't know but prolly not
+    def __init__(self,
+                 _cards: np.ndarray=None,
+                 _id: int=None,
+                 _insertion_index: int=None) -> None:
+        if _cards is None:  # default empty hand
+            self._cards = np.zeros(shape=5, dtype=np.uint8)
+            self._id = 0
+            self._insertion_index = 4
+        else:
+            self._cards = np.array(_cards, dtype=np.uint8)
+            if _id is not None and _insertion_index is not None:
+                self._id = _id
+                self._insertion_index = _insertion_index
+            # this case should only be used for testing and debugging
+            elif _id is None and _insertion_index is None:
+                self._identify()
+                self._insertion_index = 4 - self._id // 10
+            else:
+                raise AssertionError("Bug: only id or insertion index is " +
+                                     "given with custom hand constructor.")
 
-    def __init__(self, _cards=np.zeros(shape=5, dtype=np.uint8), _id=0,
-                 _insertion_index=4) -> None:
-        self._cards = _cards
-        self._id = _id
-        self._insertion_index = _insertion_index
+    @classmethod
+    def from_json(cls, json_hand: str):
+        # hd = hand dict
+        hd: Dict[str, Union[np.ndarray, int]] = loads(json_hand)
+        return cls(hd['_cards'], hd['_id'], hd['_insertion_index'])
 
     def __getitem__(self, key: Union[int, slice]) -> int:
         return self._cards[key]
@@ -155,26 +179,22 @@ class Hand(object):
 
     @property
     def _number_of_cards(self) -> int:
-        return 4 - self._insertion_index
+        return 5 - np.argmax(self._cards)
 
     @property
     def id_desc(self) -> str:
         return id_desc_dict[self._id]
 
+    def to_json(self) -> str:
+        return dumps(self.__dict__, default=lambda x: x.tolist())
+
     def _is_comparable(self, other: "Hand") -> bool:
         assert self._is_valid and other._is_valid, \
             "Bug: attempting to compare 1 or more invalid hands."
-        if self._is_bomb or other._is_bomb:
+        if self._is_bomb or other._is_bomb or self._id == other._id:
             return True
-        elif self._id != other._id:
-            return False
         else:
-            return True
-
-    def _card_index(self, card: int) -> int:
-        assert card in self, \
-                "Bug: attempting to find index of card which is not in hand."
-        return np.where(self._cards == card)[0][0]
+            return False
 
     def _identify(self) -> None:
         h = hash(self)
@@ -183,53 +203,40 @@ class Hand(object):
         else:
             self._id = hand_table[h]
 
+    def _insert_pos(self, card: int, current_index: int) -> int:
+        if current_index == 5:
+            return 4
+        elif card > self[current_index]:
+            return self._insert_pos(card, current_index + 1)
+        else:
+            return current_index - 1
+
     def _add(self, card: int) -> None:
+        # TODO: do I need these assertions?
         assert 1 <= card <= 52, "Bug: attempting to add invalid card."
         assert card not in self, "Bug: attemping to add duplicate card."
-        if (self._is_full):
+        if (self._is_full):  # TODO: should this be an error?
             print("Cannot add any more cards to this hand.")
             return
-        else:
-            ii = self._insertion_index
-            self[ii] = card
-            self._add_sort(ii)
-            self._insertion_index -= 1
+        ii: int = self._insertion_index
+        ip: int = self._insert_pos(card, ii + 1)
+        self[ii: ip] = self[ii + 1: ip + 1]  # left shift lower cards
+        self[ip] = card
+        self._insertion_index -= 1
         self._identify()
 
-    def _add_sort(self, index: int) -> None:
-        """
-        special sorting algorithm -- wow v algorithm
-        best case big theta 1, worst case big theta 4
-        TODO: calculate average worst case runtimes with random
-              insertions into hands with 1, 2, 3, and 4 cards in a
-              jupyter notebook
-
-              once I have actual user data, can also present average
-              empirical runtimes.
-        """
-        i = index
-        if i == 4:  # inserted card has reached the last index
-            return
-        elif self[i] > self[i + 1]:  # inserted card is greater than next
-            self[i], self[i + 1] = self[i + 1], self[i]  # pythonic swap
-            self._add_sort(i + 1)  # recurse on inserted card's new position
-        else:  # inserted card is less than next, i.e. in the right position
-            return
+    def _card_index(self, card: int) -> int:
+        assert card in self, \
+                f"Bug: attempting to find index of card ({card}) which is " + \
+                "not in hand."
+        return np.where(self._cards == card)[0][0]  # TODO: justify in notebook
 
     def _remove(self, card) -> None:
         assert self._id != 0, "Bug: attempting to remove from an empty hand."
-        ci = self._card_index(card)
+        ci: int = self._card_index(card)
         self[ci] = 0
         self._insertion_index += 1
-        self._remove_sort(ci)
-        self._identify()
-
-    def _remove_sort(self, card_index: int) -> None:
-        """
-        special sorting algorithm -- wow v algorithm
-        runs in big theta 1
-        """
-        ci = card_index
-        ii = self._insertion_index
-        self[ii + 1: ci + 1] = self[ii: ci]
+        ii: int = self._insertion_index
+        self[ii + 1: ci + 1] = self[ii: ci]  # right shift lower cards
         self[ii] = 0
+        self._identify()

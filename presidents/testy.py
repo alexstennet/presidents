@@ -12,6 +12,3 @@ a._add(5)
 a._add(9)
 a._add(13)
 a._add(17)
-
-b = jsonpickle.encode(a)
-c = jsonpickle.decode(b)
