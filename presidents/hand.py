@@ -1,5 +1,9 @@
 # TODO: remove string annotations after getting python 3.7
 # TODO: test hand trie instead vs. hand hash table
+# TODO: where to put this file and general path design stuff
+# TODO: evaluate necessity of asserts
+# TODO: decide what exactly should be a runtime error and whether or not
+#       ingame notifications should be through error messages
 
 import numpy as np
 import deepdish as dd
@@ -47,8 +51,6 @@ class Hand(object):
     the selection of stored hands; if a stored hand is selected, all
     stored hands containing any cards in the selected stored hand will
     be highlighted...
-
-
 
     No support for hands with more than 5 cards.
     """
@@ -179,7 +181,10 @@ class Hand(object):
 
     @property
     def _number_of_cards(self) -> int:
-        return 5 - np.argmax(self._cards)
+        try:
+            return 4 - self._insertion_index
+        except AttributeError:
+            return 5 - np.argmax(self._cards)
 
     @property
     def id_desc(self) -> str:
@@ -211,7 +216,7 @@ class Hand(object):
         else:
             return current_index - 1
 
-    def _add(self, card: int) -> None:
+    def add(self, card: int) -> None:
         # TODO: do I need these assertions?
         assert 1 <= card <= 52, "Bug: attempting to add invalid card."
         assert card not in self, "Bug: attemping to add duplicate card."
@@ -231,7 +236,7 @@ class Hand(object):
                 "not in hand."
         return np.where(self._cards == card)[0][0]  # TODO: justify in notebook
 
-    def _remove(self, card) -> None:
+    def remove(self, card) -> None:
         assert self._id != 0, "Bug: attempting to remove from an empty hand."
         ci: int = self._card_index(card)
         self[ci] = 0

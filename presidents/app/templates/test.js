@@ -1,1 +1,1 @@
-var hey = 1;
+var hey = 'fcuk';

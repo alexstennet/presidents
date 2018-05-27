@@ -93,7 +93,7 @@ def _add_straights() -> None:
     adds all straights to the hand hash table
     """
     for i in range(9):
-        group_of_5_suits = suits[i:i + 5]
+        group_of_5_suits = suits[i: i + 5]
         straights = cartesian_product_pp(group_of_5_suits)
         _add_to_hand_table_iter(straights, 52)
 

@@ -1,11 +1,17 @@
+from hand import Hand
+
 from flask import session, redirect, url_for
 from flask_socketio import emit, join_room, leave_room
 from .. import socketio
-import jsonpickle
 
-import jsonpickle.ext.numpy as jsonpickle_numpy
-jsonpickle_numpy.register_handlers()
 
+
+@socketio.on('text', namespace='/presidents')
+def text(message):
+    """Sent by a client when the user entered a new message.
+    The message is sent to all people in the room."""
+    room = session.get('room')
+    emit('message', {'msg': session.get('name') + ':' + message['msg']}, room=room)
 
 @socketio.on('joined', namespace='/presidents')
 def joined(message):
@@ -32,22 +38,24 @@ def on_singles_click(data):
 
     if the hand is valid, allows storage
     """
-    hand = jsonpickle.decode(session.get('hand'))
-    room = session.get('room')
+    hand = Hand.from_json(session['hand'])
     action = data['action']
-    card = data['card']
-    # top = data['top']
+    # TODO: should I do the conversion in python or javascript
+    card = int(data['card'])
     if action == 'add':
-        hand._add(card)
+        hand.add(card)
     elif action == 'remove':
-        hand._remove(card)
+        hand.remove(card)
     else:
         raise AssertionError("Bug: unknown action")
-    session['hand'] = jsonpickle.encode(hand)
-    emit('validity', {'validity': hand.id_desc}, room=room)
-    # emit('playability', {})
-    
+    session['hand'] = hand.to_json()
+    emit('validity', {'validity': hand.id_desc}, broadcast=False)
 
+
+@socketio.on('clear hand', namespace='/presidents')
+def clear_hand():
+    session['hand'] = Hand().to_json()
+    emit('cleared', broadcast=False)
 
 
 @socketio.on('pass', namespace='/presidents')
@@ -57,35 +65,16 @@ def on_pass(data):
     """
     ...
 
+
 @socketio.on('store', namespace='/presidents')
 def on_store(data):
     """
     stores currently selected cards in a hand
     """
+    ...
 
 
-@socketio.on('joined', namespace='/chat')
-def joined(message):
-    """Sent by clients when they enter a room.
-    A status message is broadcast to all people in the room."""
-    room = session.get('room')
-    join_room(room)
-    # the first argument of the emit corresponds to the first arg in a 
-    # socket.on(...) in the template; basically all this emit is doing
-    # is call the function within the socket.on which take in a para-
-    # meter 'data' with a dict as the value for 'data'
-    emit('status', {'msg': session.get('name') + ' has entered the room.'}, room=room)
-
-
-@socketio.on('text', namespace='/chat')
-def text(message):
-    """Sent by a client when the user entered a new message.
-    The message is sent to all people in the room."""
-    room = session.get('room')
-    emit('message', {'msg': session.get('name') + ':' + message['msg']}, room=room)
-
-
-@socketio.on('left', namespace='/chat')
+@socketio.on('left', namespace='/presidents')
 def left(message):
     """Sent by clients when they leave a room.
     A status message is broadcast to all people in the room."""

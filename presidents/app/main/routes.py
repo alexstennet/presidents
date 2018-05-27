@@ -2,10 +2,6 @@ from flask import render_template, session, redirect, url_for, request
 from . import main
 from .forms import LoginForm
 from hand import Hand
-import jsonpickle
-
-import jsonpickle.ext.numpy as jsonpickle_numpy
-jsonpickle_numpy.register_handlers()
 
 @main.route('/')
 def base():
@@ -18,7 +14,7 @@ def index():
     if form.validate_on_submit():
         session['name'] = form.name.data
         session['room'] = form.room.data
-        session['hand'] = jsonpickle.encode(Hand())
+        session['hand'] = Hand().to_json()
         return redirect(url_for('main.presidents'))
     elif request.method == 'GET':
         form.name.data = session.get('name', '')
@@ -28,6 +24,7 @@ def index():
 
 @main.route('/presidents')
 def presidents():
+    session['hand'] = Hand().to_json()
     name = session.get('name', '')
     room = session.get('room', '')
     if name == '' or room == '':

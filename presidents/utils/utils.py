@@ -3,8 +3,6 @@ import sys
 import numpy as np
 from itertools import accumulate, repeat, chain
 
-from xxhash import xxh32
-
 
 def hand_hash(hand: np.ndarray) -> int:
     return sum([hand[i] * (53 ** (5 - i))  # type: ignore
