@@ -23,15 +23,30 @@
                     $('#chat').scrollTop($('#chat')[0].scrollHeight);
                 });
 
-                socket.on('validity', function(data) {
-                    $('#chat').val($('#chat').val() + data.validity + '\n');
+                // TODO: these can prolly just be calls to message
+
+                socket.on('show', function(data) {
+                    $('#chat').val($('#chat').val() + data.repr + '\n');
                     $('#chat').scrollTop($('#chat')[0].scrollHeight);
                 });
 
                 socket.on('cleared', function() {
-                    $('#chat').val($('#chat').val() + "HAND CLEARED" + '\n');
+                    $('#chat').val($('#chat').val() + "Hand cleared." + '\n');
                     $('#chat').scrollTop($('#chat')[0].scrollHeight);
                 });
+
+                socket.on('full', function() {
+                    $('#chat').val($('#chat').val() + "You cannot add any more cards to this hand." + '\n');
+                    $('#chat').scrollTop($('#chat')[0].scrollHeight);
+                });
+
+                socket.on('select', function(data) {
+                    document.getElementById(data.card).style.background = "red";
+                })
+
+                socket.on('unselect', function(data) {
+                    document.getElementById(data.card).style.background = "green";
+                })
 
                 $('#text').keypress(function(e) {
                     var code = e.keyCode || e.which;
@@ -57,13 +72,15 @@
                 });
             }
 
-            function addCard(card) {
-                socket.emit('singles click', {action: 'add', card: card});
+            function clickCard(card) {
+                socket.emit('singles click', {card: card});
             }
 
             function clear_hand() {
                 socket.emit('clear hand')
             }
+
+            
         </script>
     </head>
 
@@ -79,31 +96,23 @@
             class Card {
                 constructor(value) {
                     this.value = value;
-                    this.clicked = false;
                 }
 
                 createBtn() {
                     var btn = document.createElement('button');
-                    btn.id = "not clicked";
+                    btn.id = this.value;
+                    btn.style.color = "white";
                     btn.style.background = "green";
                     btn.textContent = this.value;
                     btn.addEventListener("click", function() {
-                        if (this.id === "not clicked") {
-                            this.id = "clicked";
-                            this.style.background = "red";
-                            addCard(this.textContent);
-                        } else if (this.id === "clicked") {
-                            this.id = "not clicked";
-                            this.style.background = "green";
-                            removeCard(this.textContent);
-                        };
+                        clickCard(this.id);
                     });
                     return btn;
                 }
             }
             for (i = 1; i <= 13; i += 1) {
-                var fuck = new Card(i);
-                document.getElementById('cards').appendChild(fuck.createBtn());
+                var card = new Card(i);
+                document.getElementById('cards').appendChild(card.createBtn());
             }
         </script>
     </body>

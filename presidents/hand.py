@@ -4,6 +4,7 @@
 # TODO: evaluate necessity of asserts
 # TODO: decide what exactly should be a runtime error and whether or not
 #       ingame notifications should be through error messages
+# TODO: is using uint8's even worth it?
 
 import numpy as np
 import deepdish as dd
@@ -30,6 +31,14 @@ id_desc_dict = {
     52: "straight",  # e.g. [1, 5, 9, 13, 17]
     53: "bomb",  # e.g. [1, 49, 50, 51, 52]
 }
+
+# TODO: where to put these errors
+class DuplicateCardError(RuntimeError):
+    pass
+
+
+class FullHandError(RuntimeError):
+    pass
 
 
 class Hand(object):
@@ -94,6 +103,9 @@ class Hand(object):
     def __contains__(self, card: int) -> object:
         assert 1 <= card <= 52, "Bug: invalid card cannot be in hand."
         return card in self._cards
+    
+    def __iter__(self):
+        return self[self._insertion_index + 1:].__iter__()
 
     def __repr__(self) -> str:
         return f"Hand({self._cards}; {self.id_desc})"
@@ -219,10 +231,10 @@ class Hand(object):
     def add(self, card: int) -> None:
         # TODO: do I need these assertions?
         assert 1 <= card <= 52, "Bug: attempting to add invalid card."
-        assert card not in self, "Bug: attemping to add duplicate card."
+        if card in self:
+            raise DuplicateCardError("Attempting to add duplicate card.")
         if (self._is_full):  # TODO: should this be an error?
-            print("Cannot add any more cards to this hand.")
-            return
+            raise FullHandError("Cannot add any more cards to this hand.")
         ii: int = self._insertion_index
         ip: int = self._insert_pos(card, ii + 1)
         self[ii: ip] = self[ii + 1: ip + 1]  # left shift lower cards

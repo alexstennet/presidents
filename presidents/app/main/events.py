@@ -1,10 +1,10 @@
-from hand import Hand
+from hand import Hand, DuplicateCardError, FullHandError
 
 from flask import session, redirect, url_for
 from flask_socketio import emit, join_room, leave_room
 from .. import socketio
 
-
+# TODO: get rid of all the ".get"s
 
 @socketio.on('text', namespace='/presidents')
 def text(message):
@@ -17,13 +17,13 @@ def text(message):
 def joined(message):
     """Sent by clients when they enter a room.
     A status message is broadcast to all people in the room."""
-    room = session.get('room')
+    room = session['room']
     join_room(room)
     # the first argument of the emit corresponds to the first arg in a 
     # socket.on(...) in the template; basically all this emit is doing
     # is call the function within the socket.on which take in a para-
     # meter 'data' with a dict as the value for 'data'
-    emit('status', {'msg': session.get('name') + ' has entered the room.'}, room=room)
+    emit('status', {'msg': session['name'] + ' has entered the room.'}, room=room)
 
 @socketio.on('singles click', namespace='/presidents')
 def on_singles_click(data):
@@ -39,22 +39,31 @@ def on_singles_click(data):
     if the hand is valid, allows storage
     """
     hand = Hand.from_json(session['hand'])
-    action = data['action']
     # TODO: should I do the conversion in python or javascript
     card = int(data['card'])
-    if action == 'add':
+    try:
         hand.add(card)
-    elif action == 'remove':
+        emit('select', {'card': card})
+    # TODO: should I just pass the error message through no matter the problem?
+    except DuplicateCardError:
         hand.remove(card)
-    else:
-        raise AssertionError("Bug: unknown action")
+        emit('unselect', {'card': card})
+    except FullHandError:
+        emit('full', broadcast=False)
+    except Exception as e:
+        print("Bug: unknown action")
+        raise e
     session['hand'] = hand.to_json()
-    emit('validity', {'validity': hand.id_desc}, broadcast=False)
+    emit('show', {'repr': session['hand']}, broadcast=False)
 
 
 @socketio.on('clear hand', namespace='/presidents')
 def clear_hand():
+    hand = Hand.from_json(session['hand'])
     session['hand'] = Hand().to_json()
+    for card in hand:
+        # TODO: this is where the first uint8 bs happens--requires int convert
+        emit('unselect', {'card': int(card)}, broadcast=False)
     emit('cleared', broadcast=False)
 
 
