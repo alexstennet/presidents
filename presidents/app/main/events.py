@@ -6,6 +6,10 @@ from .. import socketio
 
 # TODO: get rid of all the ".get"s
 # TODO: figure out how the imports are working lol
+# TODO: how to organize helper functions--maybe a different file entirely?
+# TODO: move client updates up as early as possible
+# TODO: change hand list in session to "stored hands"
+# TODO: generally clean the fuck out of this plz wow
 
 
 @socketio.on('text', namespace='/presidents')
@@ -27,7 +31,7 @@ def joined(message):
     # is call the function within the socket.on which take in a para-
     # meter 'data' with a dict as the value for 'data'
     emit('status', {'msg': session['name'] + ' has entered the room.'}, room=room)
-    
+
 
 @socketio.on('singles click', namespace='/presidents')
 def singles_click(data):
@@ -45,36 +49,60 @@ def singles_click(data):
     hand = Hand.from_json(session['hand'])
     # TODO: should I do the conversion in python or javascript (even possible?)
     card = int(data['card'])
+    # here, we attempt to add a card that has just been clicked:
+    #   if the card is not in the current hand, it is added
+    #   else, it is remove
+    # particular order is to hopefully minimize exceptions but should be
+    # verified empirically TODO
     try:
         hand.add(card)
-        emit('select', {'card': card})
+        select_card(card)
     # TODO: should I just pass the error message through no matter the problem?
     #       what is the point of having these separate errors?
     except DuplicateCardError:
         hand.remove(card)
-        emit('unselect', {'card': card})
+        deselect_card(card)
     except FullHandError:
-        message_current_hand_full()
-        message_hand(hand) # TODO: this one doesn't require changing the session
+        alert_current_hand_full()
+        update_hand_id(hand)  # TODO: this one doesn't require changing the session
         return
     except Exception as e:  # TODO: is this even possible?
         print("Bug: unknown action")
         raise e
+    update_hand_id(hand)
+    maybe_highlight_stored_hands(hand)
     session['hand'] = hand.to_json()
-    message_hand(hand)
 
 
-@socketio.on('clear hand', namespace='/presidents')
-def clear_hand():
+@socketio.on('hand click', namespace='/presidents')
+def hand_click(data):
+    hand = Hand.from_json(data['hand'])
+    clear_current_hand_helper()  # TODO: again, do not like plz
+    update_hand_id(hand)
+    for card in hand:
+        select_card(card)
+    maybe_highlight_stored_hands(hand)
+    session['hand'] = hand.to_json()
+
+
+@socketio.on('clear current hand', namespace='/presidents')
+def clear_current_hand():
+    # TODO: make this cleaner; specifically identify what each function
+    #       is doing and name them accordingly
+    clear_current_hand_helper()
+    alert_current_hand_cleared()
+
+
+def clear_current_hand_helper():
     hand = Hand.from_json(session['hand'])
     if hand.is_empty:
         return
     for card in hand:
-        # TODO: this is where the first uint8 bs happens--requires int convert
-        emit('unselect', {'card': int(card)}, broadcast=False)
+        deselect_card(card)
     hand = Hand()
+    maybe_highlight_stored_hands(hand)
     session['hand'] = hand.to_json()
-    message_current_hand_cleared()
+    emit('clear current hand')
 
 
 @socketio.on('pass', namespace='/presidents')
@@ -92,19 +120,36 @@ def store():
     """
     hand = get_current_hand()
     if not hand.is_valid:
-        message_invalid_hand_storage()
+        alert_invalid_hand_storage()
         return
     elif hand.is_single:
-        message_single_storage()
+        alert_single_storage()
         return
     hand_list = get_hand_list()
     if hand in hand_list:
         return
     hand_list.add(hand)
     session['hand_list'] = hand_list.to_json()
-    emit('clear hands')
+    clear_current_hand_helper()
+    emit('clear stored hands')  # this clears all hands from client view for re-adding
+    update_hand_list(hand_list)  # TODO: make it more clear that this affects the client view
+
+
+def update_hand_list(hand_list):  # TODO: is that what this function is doing?
+    # TODO: why doesn't this function clear the stored hands first?
     for hand in hand_list:
-        emit('store hand', {'hand': hand.to_json(), 'id_desc': hand.id_desc}, broadcast=False)
+        store_hand(hand, 'green')
+
+
+# TODO: o god reaching the point where the naming is getting fucky
+def store_hand(hand, color):
+    emit('store hand', {'hand': hand.to_json(), 'str': str(hand), 'color': color}, broadcast=False)
+
+
+@socketio.on('clear stored hands', namespace='/presidents')
+def clear_stored_hands():
+    session['hand_list'] = HandList().to_json()
+    emit('clear stored hands')
 
 
 def get_hand_list():
@@ -120,26 +165,56 @@ def left(message):
     emit('status', {'msg': session.get('name') + ' has left the room.'}, room=room)
 
 
-# TODO: move special messages to their own folder
+def select_card(card):
+    # TODO: this is where the first uint8 bs happens--requires int convert
+    emit('select card', {'card': int(card)}, broadcast=False)
 
 
-def message_hand(hand):
-    emit('current hand', {'hand': session['hand'], 'id_desc': hand.id_desc}, broadcast=False)
+def deselect_card(card):
+    emit('deselect card', {'card': int(card)}, broadcast=False)
 
 
-def message_current_hand_cleared():
+def update_hand_id(hand):
+    if hand.is_empty:
+        clear_display()
+        return
+    else:
+        emit('current hand', {'hand': str(hand)}, broadcast=False)
+    maybe_highlight_stored_hands(hand)
+
+
+def maybe_highlight_stored_hands(hand):
+    hand_list = get_hand_list()
+    emit('clear stored hands')
+    for stored_hand in hand_list:
+        if hand.intersects(stored_hand):
+            color = 'red'
+        else:
+            color = 'green'
+        store_hand(stored_hand, color)
+
+
+def maybe_remove_stored_hands(hand):
+    hand_list = get_hand_list()
+    for stored_hand in hand_list:
+        if hand.intersects(stored_hand):
+            hand_list.remove(stored_hand)
+    update_hand_list(hand_list)
+
+
+def alert_current_hand_cleared():
     emit('alert', {'alert': 'Current hand cleared.'}, broadcast=False)
 
 
-def message_current_hand_full():
+def alert_current_hand_full():
     emit('alert', {'alert': 'You cannot add any more cards to this hand.'}, broadcast=False)
 
 
-def message_invalid_hand_storage():
+def alert_invalid_hand_storage():
     emit('alert', {'alert': 'You can only store valid hands.'}, broadcast=False)
 
 
-def message_single_storage():
+def alert_single_storage():
     emit('alert', {'alert': 'You cannot store singles; play them directly!'}, broadcast=False)
 
 
@@ -151,3 +226,5 @@ def update_session_hand(hand):
     session['hand'] = hand.to_json()
 
 
+def clear_display():
+    emit('clear display')

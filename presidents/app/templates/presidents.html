@@ -4,6 +4,7 @@
         <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
         <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
         <script type="text/javascript" charset="utf-8">
+            // TODO: should I be logging everything lol
             var socket;
             $(document).ready(function(){
                 socket = io.connect('http://' + document.domain + ':' + location.port + '/presidents');
@@ -24,14 +25,14 @@
                 });
 
                 socket.on('current hand', function(data) {
-                    $('#current_hand').text("[" + JSON.parse(data.hand)['_cards'] + "]" + ": " + data.id_desc);
+                    $('#current_hand').text(data.hand);
                 });
 
-                socket.on('select', function(data) {                    
+                socket.on('select card', function(data) {
                     $("#" + data.card).css({'background' : 'red'});
                 });
 
-                socket.on('unselect', function(data) {
+                socket.on('deselect card', function(data) {
                     $("#" + data.card).css({'background' : 'green'});
                 });
 
@@ -39,27 +40,39 @@
                     $('#alert').text(data.alert);
                     setTimeout(function() {
                         $("#alert").html("<br>");
-                    }, 3000);
+                    }, 2000);
+                });
+                
+                // make it more clear that this just clears the client's display and nothing else
+                socket.on('clear current hand', function() {
+                    $('#current_hand').html("<br>");
                 });
 
-                socket.on('clear hands', function() {
-                    $('#hands').html("<br>")
+                socket.on('clear stored hands', function() {
+                    $('#hands').html("<br>");
                 });
 
                 socket.on('store hand', function(data) {
                     var hand = $('<button>',
                     {
-                        data: data.hand,
-                        text: "[" + JSON.parse(data.hand)['_cards'] + "]" + ": " + data.id_desc,
+                        id: data.str,  // probably not the best id
+                        text: data.str,
                         css: {
                             'color': 'white',
-                            'background': 'green'
+                            'background': data.color
                         },
                         click: function() {
-                            clickHand(this.data);
+                            clickHand($(this).data('hand'));
                         }
-                    });
+                    }).data(  // TODO: how to do this within the jquery dom constructor? 
+                        'hand', data.hand
+                    );
                     hand.appendTo($('#hands'));
+                });
+
+                socket.on('clear display', function() {
+                    $("#alert").html("<br>");
+                    $('#current_hand').html("<br>");
                 });
 
                 $('#text').keypress(function(e) {
@@ -76,7 +89,6 @@
             function leave_room() {
                 socket.emit('left', {}, function() {
                     socket.disconnect();
-
                     // go back to the login page
                     // what is this situation exactly?
                         // we need to disconnect the socket (which represents
@@ -87,11 +99,11 @@
             }
 
             function clickCard(card) {
-                socket.emit('singles click', {card: card});
+                socket.emit('singles click', {'card': card});
             }
 
             function clickHand(hand) {
-                socket.emit('hand click', {hand: hand});
+                socket.emit('hand click', {'hand': hand});
             }
 
             function store_current_hand() {
@@ -99,8 +111,11 @@
             }
 
             function clear_current_hand() {
-                socket.emit('clear hand');
-                $("#current_hand").html("<br>");
+                socket.emit('clear current hand');
+            }
+
+            function clear_stored_hands() {
+                socket.emit('clear stored hands');
             }
 
             
@@ -109,28 +124,146 @@
 
     <body>
         <h1>presidents: {{ room }}</h1>
-        <textarea id="chat" cols="80" rows="20"></textarea><br><br>
+        <textarea id="chat" cols="80" rows="10"></textarea><br><br>
         <input id="text" size="80" placeholder="Enter your message here"></input><br>
         <p id="alert"><br></p>
         <p id="current_hand"><br></p>
-        <button onclick="store_current_hand()">store current hand</button><button onclick="clear_current_hand()">clear current hand</button><br><br>
-        <div id="cards"></div><br>
+        <button onclick="store_current_hand()">store current hand</button><button onclick="clear_current_hand()">clear current hand</button><button onclick="clear_stored_hands()">clear stored hands</button><br><br>
+        <div id="cards"></div><p id="card_name"><br></p>
         <div id="hands"></div><br>
         <a href="#" onclick="leave_room();">Leave this room</a><br><br>
         <script type="text/javascript" charset="utf-8">
+            var card_names = [  // TODO: where to put this?
+                null,
+                '3 of clubs',
+                '3 of diamonds',
+                '3 of hearts',
+                '3 of spades',
+                '4 of clubs',
+                '4 of diamonds',
+                '4 of hearts',
+                '4 of spades',
+                '5 of clubs',
+                '5 of diamonds',
+                '5 of hearts',
+                '5 of spades',
+                '6 of clubs',
+                '6 of diamonds',
+                '6 of hearts',
+                '6 of spades',
+                '7 of clubs',
+                '7 of diamonds',
+                '7 of hearts',
+                '7 of spades',
+                '8 of clubs',
+                '8 of diamonds',
+                '8 of hearts',
+                '8 of spades',
+                '9 of clubs',
+                '9 of diamonds',
+                '9 of hearts',
+                '9 of spades',
+                '10 of clubs',
+                '10 of diamonds',
+                '10 of hearts',
+                '10 of spades',
+                'j of clubs',
+                'j of diamonds',
+                'j of hearts',
+                'j of spades',
+                'q of clubs',
+                'q of diamonds',
+                'q of hearts',
+                'q of spades',
+                'k of clubs',
+                'k of diamonds',
+                'k of hearts',
+                'k of spades',
+                'a of clubs',
+                'a of diamonds',
+                'a of hearts',
+                'a of spades',
+                '2 of clubs',
+                '2 of diamonds',
+                '2 of hearts',
+                '2 of spades',
+            ];
+            short_names = [
+                null,
+                '3♣',
+                '3♦',
+                '3♥',
+                '3♠',
+                '4♣',
+                '4♦',
+                '4♥',
+                '4♠',
+                '5♣',
+                '5♦',
+                '5♥',
+                '5♠',
+                '6♣',
+                '6♦',
+                '6♥',
+                '6♠',
+                '7♣',
+                '7♦',
+                '7♥',
+                '7♠',
+                '8♣',
+                '8♦',
+                '8♥',
+                '8♠',
+                '9♣',
+                '9♦',
+                '9♥',
+                '9♠',
+                '10♣',
+                '10♦',
+                '10♥',
+                '10♠',
+                'j♣',
+                'j♦',
+                'j♥',
+                'j♠',
+                'q♣',
+                'q♦',
+                'q♥',
+                'q♠',
+                'k♣',
+                'k♦',
+                'k♥',
+                'k♠',
+                'a♣',
+                'a♦',
+                'a♥',
+                'a♠',
+                '2♣',
+                '2♦',
+                '2♥',
+                '2♠',
+            ]
             for (i = 1; i <= 13; i += 1) {
                 var card = $('<button>',
                 {
                     id: i, // TODO: using the id as the card value being passed to backend, what happens when you change this in the html locally?
-                    text: i,
+                    text: short_names[i],
                     css: {
                         'color': 'white',
                         'background': 'green'
                     },
                     click: function() {
                         clickCard(this.id);
+                    },
+                    
+                }).hover(  // TODO: how to do this within the jquery dom constructor? 
+                    function() {
+                        $('#card_name').text(card_names[parseInt(this.id)]);
+                    },
+                    function() {
+                        $('#card_name').html("<br>");
                     }
-                });
+                )
                 card.appendTo($('#cards'));
             }
         </script>

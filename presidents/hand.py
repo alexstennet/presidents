@@ -15,6 +15,63 @@ from typing import Dict, Union
 from json import dumps, loads
 from mypy_extensions import NoReturn
 
+# TODO: where to put this?
+card_names = [
+    None,  # cards are 1-indexed for convenience
+    '3♣',
+    '3♦',
+    '3♥',
+    '3♠',
+    '4♣',
+    '4♦',
+    '4♥',
+    '4♠',
+    '5♣',
+    '5♦',
+    '5♥',
+    '5♠',
+    '6♣',
+    '6♦',
+    '6♥',
+    '6♠',
+    '7♣',
+    '7♦',
+    '7♥',
+    '7♠',
+    '8♣',
+    '8♦',
+    '8♥',
+    '8♠',
+    '9♣',
+    '9♦',
+    '9♥',
+    '9♠',
+    '10♣',
+    '10♦',
+    '10♥',
+    '10♠',
+    'j♣',
+    'j♦',
+    'j♥',
+    'j♠',
+    'q♣',
+    'q♦',
+    'q♥',
+    'q♠',
+    'k♣',
+    'k♦',
+    'k♥',
+    'k♠',
+    'a♣',
+    'a♦',
+    'a♥',
+    'a♠',
+    '2♣',
+    '2♦',
+    '2♥',
+    '2♠',
+]
+
 # hash table for identifying hands
 hand_table = dd.io.load("hand_table.h5")
 
@@ -35,6 +92,8 @@ id_desc_dict = {
 
 # TODO: where to put these errors
 # TODO: are these errors even necessary
+
+
 class DuplicateCardError(RuntimeError):
     pass
 
@@ -93,6 +152,7 @@ class Hand(object):
         hd: Dict[str, Union[np.ndarray, int]] = loads(json_hand)
         return cls(hd['_cards'], hd['_id'], hd['_insertion_index'])
 
+
     def __getitem__(self, key: Union[int, slice]) -> int:
         return self._cards[key]
 
@@ -104,13 +164,19 @@ class Hand(object):
 
     def __contains__(self, card: int) -> object:
         assert 1 <= card <= 52, "Bug: invalid card cannot be in hand."
-        return card in self._cards
+        return card in self._cards  # TODO: should I slice before this?
 
     def __iter__(self):  # TODO: return type for this
         return self[self._insertion_index + 1:].__iter__()
 
+    def __str__(self) -> str:
+        to_join = [card_names[card] for card in self]
+        return " ".join(to_join) + f": {self.id_desc}"
+
     def __repr__(self) -> str:
-        return f"Hand({self._cards}; {self.id_desc})"
+        # TODO: how to multiline f string plz
+        return f"cards: {str(self._cards)}; id: {self._id}; ii: " + \
+               f"{self._insertion_index}"
 
     def __eq__(self, other: object) -> bool:
         return (np.array_equal(self._cards, other._cards) and  # type: ignore
@@ -208,6 +274,13 @@ class Hand(object):
     @property
     def id_desc(self) -> str:
         return id_desc_dict[self._id]
+
+    def intersects(self, other: "Hand") -> bool:  # TODO: refine this
+        for card1 in self:
+            for card2 in other:
+                if card1 == card2:
+                    return True
+        return False
 
     def to_json(self) -> str:
         return dumps(self.__dict__, default=lambda x: x.tolist())
