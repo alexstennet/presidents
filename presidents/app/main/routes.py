@@ -2,6 +2,7 @@ from flask import render_template, session, redirect, url_for, request
 from . import main
 from .forms import LoginForm
 from hand import Hand
+from hand_list import HandList
 
 @main.route('/')
 def base():
@@ -15,6 +16,7 @@ def index():
         session['name'] = form.name.data
         session['room'] = form.room.data
         session['hand'] = Hand().to_json()
+        session['hand_list'] = HandList().to_json()
         return redirect(url_for('main.presidents'))
     elif request.method == 'GET':
         form.name.data = session.get('name', '')

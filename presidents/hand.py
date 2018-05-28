@@ -5,6 +5,7 @@
 # TODO: decide what exactly should be a runtime error and whether or not
 #       ingame notifications should be through error messages
 # TODO: is using uint8's even worth it?
+# TODO: normalize use of double or single quotes
 
 import numpy as np
 import deepdish as dd
@@ -33,6 +34,7 @@ id_desc_dict = {
 }
 
 # TODO: where to put these errors
+# TODO: are these errors even necessary
 class DuplicateCardError(RuntimeError):
     pass
 
@@ -103,15 +105,15 @@ class Hand(object):
     def __contains__(self, card: int) -> object:
         assert 1 <= card <= 52, "Bug: invalid card cannot be in hand."
         return card in self._cards
-    
-    def __iter__(self):
+
+    def __iter__(self):  # TODO: return type for this
         return self[self._insertion_index + 1:].__iter__()
 
     def __repr__(self) -> str:
         return f"Hand({self._cards}; {self.id_desc})"
 
     def __eq__(self, other: object) -> bool:
-        return (self._cards == other._cards and  # type: ignore
+        return (np.array_equal(self._cards, other._cards) and  # type: ignore
                 self._id == other._id and  # type: ignore
                 (self._insertion_index
                     == other._insertion_index))  # type: ignore
@@ -121,17 +123,18 @@ class Hand(object):
 
     def __lt__(self, other: "Hand") -> bool:
         if not self._is_comparable(other):
+            # TODO: should this be a runtime error?
             raise RuntimeError(
                 f"{self.id_desc} cannot be played on {other.id_desc}.")
-        if self._is_bomb and other._is_bomb:
+        if self.is_bomb and other.is_bomb:
             return self[1] < other[1]  # second card is always part of the quad
-        elif self._is_bomb:
+        elif self.is_bomb:
             return False
-        elif other._is_bomb:
+        elif other.is_bomb:
             return True
-        elif self._is_single or self._is_double or self._is_straight:
+        elif self.is_single or self.is_double or self.is_straight:
             return self[4] < other[4]
-        elif self._is_triple or self._is_fullhouse:
+        elif self.is_triple or self.is_fullhouse:
             return self[2] < other[2]
         else:
             raise AssertionError("Bug: unidentified hand.")
@@ -140,15 +143,15 @@ class Hand(object):
         if not self._is_comparable(other):
             raise RuntimeError(
                 f"{self.id_desc} cannot be played on {other.id_desc}.")
-        if self._is_bomb and other._is_bomb:
+        if self.is_bomb and other.is_bomb:
             return self[1] > other[1]  # second card is always part of the quad
-        elif self._is_bomb:
+        elif self.is_bomb:
             return True
-        elif other._is_bomb:
+        elif other.is_bomb:
             return False
-        elif self._is_single or self._is_double or self._is_straight:
+        elif self.is_single or self.is_double or self.is_straight:
             return self[4] > other[4]
-        elif self._is_triple or self._is_fullhouse:
+        elif self.is_triple or self.is_fullhouse:
             return self[2] > other[2]
         else:
             raise AssertionError("Bug: unidentified hand.")
@@ -160,35 +163,39 @@ class Hand(object):
         raise AssertionError('A >= call was made by a Hand.')
 
     @property
-    def _is_full(self) -> bool:
+    def is_empty(self) -> bool:
+        return self._id == 0
+
+    @property
+    def is_full(self) -> bool:
         return self._insertion_index == -1
 
     @property
-    def _is_single(self) -> bool:
+    def is_single(self) -> bool:
         return self._id == 11
 
     @property
-    def _is_double(self) -> bool:
+    def is_double(self) -> bool:
         return self._id == 21
 
     @property
-    def _is_triple(self) -> bool:
+    def is_triple(self) -> bool:
         return self._id == 31
 
     @property
-    def _is_fullhouse(self) -> bool:
+    def is_fullhouse(self) -> bool:
         return self._id == 51
 
     @property
-    def _is_straight(self) -> bool:
+    def is_straight(self) -> bool:
         return self._id == 52
 
     @property
-    def _is_bomb(self) -> bool:
+    def is_bomb(self) -> bool:
         return self._id == 53
 
     @property
-    def _is_valid(self) -> bool:
+    def is_valid(self) -> bool:
         return self._id % 10 > 0
 
     @property
@@ -206,9 +213,9 @@ class Hand(object):
         return dumps(self.__dict__, default=lambda x: x.tolist())
 
     def _is_comparable(self, other: "Hand") -> bool:
-        assert self._is_valid and other._is_valid, \
+        assert self.is_valid and other.is_valid, \
             "Bug: attempting to compare 1 or more invalid hands."
-        if self._is_bomb or other._is_bomb or self._id == other._id:
+        if self.is_bomb or other.is_bomb or self._id == other._id:
             return True
         else:
             return False
@@ -233,7 +240,7 @@ class Hand(object):
         assert 1 <= card <= 52, "Bug: attempting to add invalid card."
         if card in self:
             raise DuplicateCardError("Attempting to add duplicate card.")
-        if (self._is_full):  # TODO: should this be an error?
+        if (self.is_full):  # TODO: should this be an error?
             raise FullHandError("Cannot add any more cards to this hand.")
         ii: int = self._insertion_index
         ip: int = self._insert_pos(card, ii + 1)

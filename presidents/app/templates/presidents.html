@@ -23,30 +23,44 @@
                     $('#chat').scrollTop($('#chat')[0].scrollHeight);
                 });
 
-                // TODO: these can prolly just be calls to message
-
-                socket.on('show', function(data) {
-                    $('#chat').val($('#chat').val() + data.repr + '\n');
-                    $('#chat').scrollTop($('#chat')[0].scrollHeight);
+                socket.on('current hand', function(data) {
+                    $('#current_hand').text("[" + JSON.parse(data.hand)['_cards'] + "]" + ": " + data.id_desc);
                 });
 
-                socket.on('cleared', function() {
-                    $('#chat').val($('#chat').val() + "Hand cleared." + '\n');
-                    $('#chat').scrollTop($('#chat')[0].scrollHeight);
+                socket.on('select', function(data) {                    
+                    $("#" + data.card).css({'background' : 'red'});
                 });
-
-                socket.on('full', function() {
-                    $('#chat').val($('#chat').val() + "You cannot add any more cards to this hand." + '\n');
-                    $('#chat').scrollTop($('#chat')[0].scrollHeight);
-                });
-
-                socket.on('select', function(data) {
-                    document.getElementById(data.card).style.background = "red";
-                })
 
                 socket.on('unselect', function(data) {
-                    document.getElementById(data.card).style.background = "green";
-                })
+                    $("#" + data.card).css({'background' : 'green'});
+                });
+
+                socket.on('alert', function(data) {
+                    $('#alert').text(data.alert);
+                    setTimeout(function() {
+                        $("#alert").html("<br>");
+                    }, 3000);
+                });
+
+                socket.on('clear hands', function() {
+                    $('#hands').html("<br>")
+                });
+
+                socket.on('store hand', function(data) {
+                    var hand = $('<button>',
+                    {
+                        data: data.hand,
+                        text: "[" + JSON.parse(data.hand)['_cards'] + "]" + ": " + data.id_desc,
+                        css: {
+                            'color': 'white',
+                            'background': 'green'
+                        },
+                        click: function() {
+                            clickHand(this.data);
+                        }
+                    });
+                    hand.appendTo($('#hands'));
+                });
 
                 $('#text').keypress(function(e) {
                     var code = e.keyCode || e.which;
@@ -76,8 +90,17 @@
                 socket.emit('singles click', {card: card});
             }
 
-            function clear_hand() {
-                socket.emit('clear hand')
+            function clickHand(hand) {
+                socket.emit('hand click', {hand: hand});
+            }
+
+            function store_current_hand() {
+                socket.emit('store');
+            }
+
+            function clear_current_hand() {
+                socket.emit('clear hand');
+                $("#current_hand").html("<br>");
             }
 
             
@@ -87,32 +110,28 @@
     <body>
         <h1>presidents: {{ room }}</h1>
         <textarea id="chat" cols="80" rows="20"></textarea><br><br>
-        <input id="text" size="80" placeholder="Enter your message here"></input><br><br>
-        <button onclick="clear_hand()">Clear</button><br><br>
-        <div id="cards"></div>
+        <input id="text" size="80" placeholder="Enter your message here"></input><br>
+        <p id="alert"><br></p>
+        <p id="current_hand"><br></p>
+        <button onclick="store_current_hand()">store current hand</button><button onclick="clear_current_hand()">clear current hand</button><br><br>
+        <div id="cards"></div><br>
+        <div id="hands"></div><br>
         <a href="#" onclick="leave_room();">Leave this room</a><br><br>
         <script type="text/javascript" charset="utf-8">
-            // TODO: does this even have to be a class like how to even javascript tbh
-            class Card {
-                constructor(value) {
-                    this.value = value;
-                }
-
-                createBtn() {
-                    var btn = document.createElement('button');
-                    btn.id = this.value;
-                    btn.style.color = "white";
-                    btn.style.background = "green";
-                    btn.textContent = this.value;
-                    btn.addEventListener("click", function() {
-                        clickCard(this.id);
-                    });
-                    return btn;
-                }
-            }
             for (i = 1; i <= 13; i += 1) {
-                var card = new Card(i);
-                document.getElementById('cards').appendChild(card.createBtn());
+                var card = $('<button>',
+                {
+                    id: i, // TODO: using the id as the card value being passed to backend, what happens when you change this in the html locally?
+                    text: i,
+                    css: {
+                        'color': 'white',
+                        'background': 'green'
+                    },
+                    click: function() {
+                        clickCard(this.id);
+                    }
+                });
+                card.appendTo($('#cards'));
             }
         </script>
     </body>
