@@ -12,11 +12,15 @@ class HandList:
     ...
     """
     def __init__(self, _hands=set()) -> None:
-        self._hands: Set[Hand] = set(_hands)
+        self._hands: Set[Hand] = _hands
 
     @classmethod
     def from_json(cls, json_hand_list: str):
-        return cls(list(map(Hand.from_json, loads(json_hand_list))))
+        return cls(set(map(Hand.from_json, loads(json_hand_list))))
+
+    @classmethod
+    def copy(cls, hand_list: "HandList") -> "HandList":
+        return cls(set(hand_list._hands))
 
     def __iter__(self):  # TODO: return type for this
         return self._hands.__iter__()
@@ -38,3 +42,6 @@ class HandList:
 
     def to_json(self) -> str:
         return dumps(list(self), default=lambda x: x.to_json())
+
+
+    

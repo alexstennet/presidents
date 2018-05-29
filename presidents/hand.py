@@ -17,59 +17,11 @@ from mypy_extensions import NoReturn
 
 # TODO: where to put this?
 card_names = [
-    None,  # cards are 1-indexed for convenience
-    '3♣',
-    '3♦',
-    '3♥',
-    '3♠',
-    '4♣',
-    '4♦',
-    '4♥',
-    '4♠',
-    '5♣',
-    '5♦',
-    '5♥',
-    '5♠',
-    '6♣',
-    '6♦',
-    '6♥',
-    '6♠',
-    '7♣',
-    '7♦',
-    '7♥',
-    '7♠',
-    '8♣',
-    '8♦',
-    '8♥',
-    '8♠',
-    '9♣',
-    '9♦',
-    '9♥',
-    '9♠',
-    '10♣',
-    '10♦',
-    '10♥',
-    '10♠',
-    'j♣',
-    'j♦',
-    'j♥',
-    'j♠',
-    'q♣',
-    'q♦',
-    'q♥',
-    'q♠',
-    'k♣',
-    'k♦',
-    'k♥',
-    'k♠',
-    'a♣',
-    'a♦',
-    'a♥',
-    'a♠',
-    '2♣',
-    '2♦',
-    '2♥',
-    '2♠',
+    None, '3♣', '3♦', '3♥', '3♠', '4♣', '4♦', '4♥', '4♠', '5♣', '5♦', '5♥',
+    '5♠', '6♣', '6♦', '6♥', '6♠', '7♣', '7♦', '7♥', '7♠', '8♣', '8♦', '8♥',
+    '8♠', '9♣', '9♦', '9♥', '9♠', '10♣', '10♦', '10♥', '10♠', 'j♣', 'j♦', 'j♥',
+    'j♠', 'q♣', 'q♦', 'q♥', 'q♠', 'k♣', 'k♦', 'k♥', 'k♠', 'a♣', 'a♦', 'a♥',
+    'a♠', '2♣', '2♦', '2♥', '2♠',
 ]
 
 # hash table for identifying hands
@@ -191,7 +143,7 @@ class Hand(object):
         if not self._is_comparable(other):
             # TODO: should this be a runtime error?
             raise RuntimeError(
-                f"{self.id_desc} cannot be played on {other.id_desc}.")
+                f"A {self.id_desc} cannot be played on a {other.id_desc}.")
         if self.is_bomb and other.is_bomb:
             return self[1] < other[1]  # second card is always part of the quad
         elif self.is_bomb:
@@ -208,7 +160,7 @@ class Hand(object):
     def __gt__(self, other: "Hand") -> bool:
         if not self._is_comparable(other):
             raise RuntimeError(
-                f"{self.id_desc} cannot be played on {other.id_desc}.")
+                f"A {self.id_desc} cannot be played on a {other.id_desc}.")
         if self.is_bomb and other.is_bomb:
             return self[1] > other[1]  # second card is always part of the quad
         elif self.is_bomb:
@@ -288,7 +240,9 @@ class Hand(object):
     def _is_comparable(self, other: "Hand") -> bool:
         assert self.is_valid and other.is_valid, \
             "Bug: attempting to compare 1 or more invalid hands."
-        if self.is_bomb or other.is_bomb or self._id == other._id:
+        if other.is_bomb and not self.is_bomb:
+            return False
+        elif self.is_bomb or self._id == other._id:
             return True
         else:
             return False
