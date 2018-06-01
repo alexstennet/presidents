@@ -35,7 +35,7 @@ class Start:
     for playing the 3 of clubs on 
     """
     pass
-Start = Start()
+Start: "Start" = Start()
 
 
 @socketio.on('text', namespace='/presidents')

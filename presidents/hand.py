@@ -6,6 +6,7 @@
 #       ingame notifications should be through error messages
 # TODO: is using uint8's even worth it?
 # TODO: normalize use of double or single quotes
+# TODO: change all uint8's to python ints
 
 import numpy as np
 import deepdish as dd
@@ -86,6 +87,7 @@ class Hand(object):
             self._id = 0
             self._insertion_index = 4
         else:
+            assert len(_cards) == 5
             self._cards = np.array(_cards, dtype=np.uint8)
             if _id is not None and _insertion_index is not None:
                 self._id = _id

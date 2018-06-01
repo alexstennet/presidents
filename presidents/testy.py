@@ -1,18 +1,15 @@
+import numpy as np
+
 from hand import Hand
 from hand_list import HandList
-from json import loads, dumps
+from card_hand_chamber import CardHandChamber
 
+a = np.arange(1, 14)
 
-a = Hand()
-a.add(1)
-a.add(5)
-a.add(9)
-a.add(13)
-a.add(17)
+b = CardHandChamber(a)
 
-c = Hand([2,49,50,51,52])
+c = Hand([0, 0, 0, 1, 2])
+d = Hand([0, 0, 0, 2, 3])
 
-b = HandList()
-
-b.add(a)
-b.add(c)
+b.add_hand(c)
+b.add_hand(d)
