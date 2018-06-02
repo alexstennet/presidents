@@ -12,15 +12,11 @@
                     socket.emit('joined', {});
                 });
                 socket.on('status', function(data) {
-                    // the objects like $('#chat') correspond to the id in an html object
                     $('#chat').val($('#chat').val() + '<' + data.msg + '>\n');
-                    // this line auto scrolls down when the message exceeds
-                    // the window space
                     $('#chat').scrollTop($('#chat')[0].scrollHeight);
                 });
                 socket.on('message', function(data) {
                     $('#chat').val($('#chat').val() + data.msg + '\n');
-                    // same as above
                     $('#chat').scrollTop($('#chat')[0].scrollHeight);
                 });
 
@@ -62,18 +58,19 @@
 
                 socket.on('store hand', function(data) {
                     var hand = $('<button>',
-                    {
-                        text: data.str,
+                    {   
+                        id: data.dom_id,
+                        text: data.dom_id,
                         css: {
                             'color': 'white',
                             'background': data.color
                         },
                         click: function() {
-                            clickHand($(this).data('hand'));
+                            clickHand($(this).data('cards'));
                         }
-                    }).data(  // TODO: how to do this within the jquery dom constructor? 
-                        'hand', data.hand
-                    );
+                    }).data({
+                        cards: data.cards
+                    });
                     hand.appendTo($('#hands'));
                 });
 
@@ -112,6 +109,18 @@
                     $('#hand_in_play').html("<br>")
                 });
 
+                socket.on('select hand', function(data) {
+                    $('#' + data.dom_id).css({'background' : 'red'});
+                });
+
+                socket.on('deselect hand', function(data) {
+                    $('#' + data.dom_id).css({'background': 'green'});
+                });
+
+                socket.on('remove hand', function(data) {
+                    $('#' + data.dom_id).remove();
+                });
+
                 $('#text').keypress(function(e) {
                     var code = e.keyCode || e.which;
                     if (code == 13) {
@@ -136,11 +145,11 @@
             }
 
             function clickCard(card) {
-                socket.emit('singles click', {'card': card});
+                socket.emit('card click', {'card': card});
             }
 
-            function clickHand(hand) {
-                socket.emit('hand click', {'hand': hand});
+            function clickHand(cards) {
+                socket.emit('hand click', {'cards': cards});
             }
 
             function store_current_hand() {

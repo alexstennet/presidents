@@ -1,9 +1,10 @@
 from hand import Hand, DuplicateCardError, FullHandError
+from card_hand_chamber import CardHandChamber
 from hand_list import HandList
 from flask import request, session, redirect, url_for
 from flask_socketio import emit, join_room, leave_room
 from .. import socketio
-from typing import Dict, List
+from typing import Dict, List, Generator
 from itertools import cycle
 import numpy as np
 
@@ -14,107 +15,124 @@ import numpy as np
 # TODO: change hand list in session to "stored hands"
 # TODO: generally clean the fuck out of this plz wow
 # TODO: doing the whole global thing?
+# TODO: is this the "server"?
+# TODO: encapsulate all the below in a Game class?
+# TODO: make sure only socket events access the session or request
+# TODO: order functions
 
-# TODO: where to put this and also how to handle hecka rooms?
-# TODO: wait does this even have to be a dict lol
-# a dict from room to Hand object
-last_played: Dict[str, Hand] = dict()
+# TODO: where to put these
+current_hand_dict: Dict[str, Hand] = dict()
+# TODO: should not be a dict from sid so another player can take over
+card_hand_chamber_dict: Dict[str, CardHandChamber]
+hand_in_play_dict: Dict[str, Hand] = dict()
+player_sids_dict: Dict[str, List[str]] = dict()
+player_cycler_dict: Dict[str, Generator[str, None, None]] = dict()
+current_player_dict: Dict[str, str] = dict()
+finished_player_sids_dict: Dict[str, List[str]] = dict()
+num_finished_players_dict: Dict[str, int] = dict()
+consecutive_passes_dict: Dict[str, int] = dict()
+names_dict: Dict[str, str] = dict()
 
-# TODO: alternatives?
-players: List[str] = list()
-current_player: str = None
-player_cycler = None  # TODO: generator type hint
-players_remaining = 0
-consecutive_passes = 0
-names = dict()
+
+def get_room() -> str:
+    return session['room']
 
 
-# TODO: don't really like this but like wut do
-class Start:
-    """
-    for playing the 3 of clubs on 
-    """
-    pass
-Start: "Start" = Start()
+def get_name() -> str:
+    return session['name']
+
+
+def get_sid() -> str:
+    return request.sid
 
 
 @socketio.on('text', namespace='/presidents')
 def text(message):
-    """Sent by a client when the user entered a new message.
-    The message is sent to all people in the room."""
-    room = session.get('room')
-    emit('message', {'msg': f"{session['name']}: {message['msg']}"}, room=room)
+    room = get_room()
+    name = get_name()
+    emit('message', {'msg': f"{name}: {message['msg']}"}, room=room)
 
 
 @socketio.on('joined', namespace='/presidents')
 def joined(message):
-    """Sent by clients when they enter a room.
-    A status message is broadcast to all people in the room."""
-    room = session['room']
+    room = get_room()
+    name = get_name()
+    player_sid = get_sid()
     join_room(room)
-    add_players(room)
-    # the first argument of the emit corresponds to the first arg in a 
-    # socket.on(...) in the template; basically all this emit is doing
-    # is call the function within the socket.on which take in a para-
-    # meter 'data' with a dict as the value for 'data'
-    emit('status', {'msg': session['name'] + ' has entered the room.'}, room=room)
-    if len(players) == 4:
+    add_player(room, name, player_sid)
+    emit('status', {'msg': f"{name}" + ' has entered the room.'}, room=room)
+    if len(player_sids_dict[room]) == 1:
         start_game(room)
 
 
-def ready_to_deal():
-    to_deal = np.arange(1, 53)  # to_deal is a list of lists of cards
-    np.random.shuffle(to_deal)
-    to_deal = to_deal.reshape(4, 13)
-    # to_deal = to_deal.reshape(2, 26)  # for 2 player mode
-    to_deal.sort(axis=1)
-    return to_deal
+def add_player(room, name, player_sid):
+    names_dict[player_sid] = name
+    player_sids_dict[room].append(player_sid)
+    current_hand_dict[player_sid] = Hand()
+
+
+# TODO: don't really like this but like wut do
+class Start:  # for playing the 3 of clubs on 
+    pass
+Start = Start()
 
 
 def start_game(room):
-    to_deal = ready_to_deal()
-    # to_deal = np.arange(1, 53).reshape(2, 26)  # for debugging
-    global player_cycler, current_player, players_remaining
-    player_cycler = turn_generator(index_with_3_of_clubs(to_deal))
-    current_player = next(player_cycler)
-    players_remaining = 4
-    deal_cards(to_deal, room)
-    last_played[session['room']] = Start
+    deal_cards_and_establish_turn_order(room)
+    hand_in_play_dict[room] = Start
 
 
-def next_player():
-    global current_player
+def deal_cards_and_establish_turn_order(room):
+    deck = np.arange(1, 53)
+    np.random.shuffle(deck)
+    decks = deck.reshape(4, 13)
+    decks.sort(axis=1)  # sorts each deck
+    c3_index = np.where(decks == 1)[0][0]  # which deck has the 3 of clubs
+    player_cycler = player_cycler_dict[room] = turn_generator(room, c3_index)
+    current_player_dict[room] = next(player_cycler)
+    for player_sid, deck in zip(player_sids_dict[room], decks):
+        emit('assign cards', {'cards': deck.tolist()}, room=player_sid)
+
+
+def turn_generator(room, starting_player_index):
+    player_cycle = cycle(player_sids_dict[room])
+    # iterates to the current player
+    for _ in range(starting_player_index):
+        next(player_cycle)
+    yield from player_cycle
+
+
+def next_player(room):
+    player_cycler = player_cycler_dict[room]
     current_player = next(player_cycler)
-    name = names[current_player]
-    room = session['room']
+    finished_player_sids = finished_player_sids_dict[room]
+    while current_player in finished_player_sids:
+        current_player = next(player_cycler)
+    current_player_dict[room] = current_player
+    name = names_dict[room][current_player]
     emit('message', {'msg': f"SERVER: it's {name}'s turn!"}, room=room)
 
 
-def index_with_3_of_clubs(to_deal):  # to_deal is a list of lists of cards
-    return np.where(to_deal == 1)[0][0]  # TODO: justify/benchmark
-
-
-# TODO: where/how to handle starting card having to include 3 of clubs 
 @socketio.on('play current hand', namespace='/presidents')
 def play_current_hand():
-    global consecutive_passes
-    if request.sid != current_player:
+    room = get_room()
+    player_sid = get_sid()
+    if player_sid != current_player_dict[room]:
         alert_can_only_play_on_turn()
         return
-    hand = get_current_hand()
+    hand = get_current_hand(player_sid)
     if not hand.is_valid:
         alert_playing_invalid_hand()
         return
-    room = session['room']
-    hand_in_play = last_played.get(room, None)
+    hand_in_play = hand_in_play_dict[room]
     if hand_in_play is Start:  # hand must contain the 3 of clubs
         if 1 not in hand:
             alert_3_of_clubs()
             return
         else:
             # TODO: clearly need to bundle these together
-            last_played[room] = hand
-            update_hand_in_play(hand)
+            hand_in_play_dict[room] = hand
+            client_update_hand_in_play(hand)
             clear_current_hand_helper()
             remove_cards_in_hand(hand)
             maybe_remove_stored_hands(hand)
@@ -123,7 +141,7 @@ def play_current_hand():
             next_player()
     elif hand_in_play is None:
         last_played[room] = hand
-        update_hand_in_play(hand)
+        client_update_hand_in_play(hand)
         clear_current_hand_helper()
         remove_cards_in_hand(hand)
         maybe_remove_stored_hands(hand)
@@ -134,7 +152,7 @@ def play_current_hand():
         try:
             if hand > hand_in_play:
                 last_played[room] = hand
-                update_hand_in_play(hand)
+                client_update_hand_in_play(hand)
                 clear_current_hand_helper()
                 remove_cards_in_hand(hand)
                 maybe_remove_stored_hands(hand)
@@ -147,7 +165,7 @@ def play_current_hand():
             emit('alert', {'alert': str(e)}, broadcast=False)
 
 
-def update_hand_in_play(hand):
+def client_update_hand_in_play(hand):
     room = session['room']
     emit('hand in play', {'hand': str(hand)}, room=room)
 
@@ -158,43 +176,36 @@ def remove_cards_in_hand(hand):
         emit('remove card', {'card': int(card)}, broadcast=False)
 
 
-def deal_cards(to_deal, room):
-    for player, cards in zip(players, to_deal):
-        emit('assign cards', {'cards': cards.tolist()}, room=player)
 
 
-def add_players(room):
-    names[request.sid] = session['name']
-    players.append(request.sid)
 
 
-def turn_generator(starting_player_index):
-    """
-    should be recalled everytime a player is finished
-    """
-    player_cycle = cycle(players)
-    # iterates to the current player
-    for _ in range(starting_player_index):
-        next(player_cycle)
-    yield from player_cycle
 
 
-@socketio.on('singles click', namespace='/presidents')
+
+
+@socketio.on('card click', namespace='/presidents')
 def singles_click(data):
-    """
-    handles clicking on selected and unselected singles that belong to
-    the respective player
-
-    data contains the spot number and the card clicked on
-
-    should update hand id and whether or not it beats the hand currently
-    being played on
-
-    if the hand is valid, allows storage
-    """
-    hand = Hand.from_json(session['hand'])
+    player_sid = get_sid()
+    hand = get_current_hand(player_sid)
+    card_hand_chamber = get_card_hand_chamber(player_sid)
     # TODO: should I do the conversion in python or javascript (even possible?)
     card = int(data['card'])
+    add_or_remove_card(card, hand, card_hand_chamber)
+    client_update_hand(hand)
+
+
+@socketio.on('hand click', namespace='/presidents')
+def hand_click(data):
+    player_sid = get_sid()
+    hand = get_current_hand(player_sid)
+    card_hand_chamber = get_card_hand_chamber(player_sid)
+    cards = data['cards']
+    for card in cards:
+        add_or_remove_card(card, hand, card_hand_chamber)
+
+
+def add_or_remove_card(card: int, hand: Hand, card_hand_chamber: CardHandChamber):
     # here, we attempt to add a card that has just been clicked:
     #   if the card is not in the current hand, it is added
     #   else, it is remove
@@ -202,33 +213,19 @@ def singles_click(data):
     # verified empirically TODO
     try:
         hand.add(card)
-        select_card(card)
+        card_hand_chamber.select_card(card)
     # TODO: should I just pass the error message through no matter the problem?
     #       what is the point of having these separate errors?
     except DuplicateCardError:
         hand.remove(card)
-        deselect_card(card)
+        card_hand_chamber.deselect_card(card)
     except FullHandError:
         alert_current_hand_full()
-        update_hand_id(hand)  # TODO: this one doesn't require changing the session
+        # client_update_hand(hand)  # TODO: this one doesn't require changing the session
         return
-    except Exception as e:  # TODO: is this even possible?
-        print("Bug: unknown action")
+    except Exception as e:
+        print("Bug: probably the card hand chamber freaking out")
         raise e
-    update_hand_id(hand)
-    maybe_highlight_stored_hands(hand)
-    session['hand'] = hand.to_json()
-
-
-@socketio.on('hand click', namespace='/presidents')
-def hand_click(data):
-    hand = Hand.from_json(data['hand'])
-    clear_current_hand_helper()  # TODO: again, do not like plz
-    update_hand_id(hand)
-    for card in hand:
-        select_card(card)
-    maybe_highlight_stored_hands(hand)
-    session['hand'] = hand.to_json()
 
 
 @socketio.on('clear current hand', namespace='/presidents')
@@ -244,7 +241,7 @@ def clear_current_hand_helper():
     if hand.is_empty:
         return
     for card in hand:
-        deselect_card(card)
+        client_deselect_card(card)
     hand = Hand()
     maybe_highlight_stored_hands(hand)
     session['hand'] = hand.to_json()
@@ -331,16 +328,16 @@ def left(message):
     emit('status', {'msg': session.get('name') + ' has left the room.'}, room=room)
 
 
-def select_card(card):
+def client_select_card(card):
     # TODO: this is where the first uint8 bs happens--requires int convert
     emit('select card', {'card': int(card)}, broadcast=False)
 
 
-def deselect_card(card):
+def client_deselect_card(card):
     emit('deselect card', {'card': int(card)}, broadcast=False)
 
 
-def update_hand_id(hand):
+def client_update_hand(hand):
     if hand.is_empty:
         clear_display()
         return
@@ -436,8 +433,12 @@ def message_round_won():
     emit('message', {'msg': f"SERVER: {name} won the round!"}, room=room)
 
 
-def get_current_hand():
-    return Hand.from_json(session['hand'])
+def get_current_hand(player_sid):
+    return current_hand_dict[player_sid]
+
+
+def get_card_hand_chamber(player_sid):
+    return card_hand_chamber_dict[player_sid]
 
 
 def update_session_hand(hand):

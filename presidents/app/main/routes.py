@@ -15,8 +15,6 @@ def index():
     if form.validate_on_submit():
         session['name'] = form.name.data
         session['room'] = form.room.data
-        session['hand'] = Hand().to_json()
-        session['hand_list'] = HandList().to_json()
         return redirect(url_for('main.presidents'))
     elif request.method == 'GET':
         form.name.data = session.get('name', '')
