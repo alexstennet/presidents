@@ -5,7 +5,8 @@ from hand import Hand
 from flask_socketio import emit
 
 
-# TODO: use del for hand
+# TODO: use del for hand?
+# TODO: add is not None checks for cards existing
 
 
 class CardHandChamber:
@@ -37,26 +38,22 @@ class CardHandChamber:
             hand_pointer_dllnode.value = hand_pointer_node
             hand_pointer_nodes.append(hand_pointer_node)
         hand_dllnode = self._hands.append(None)
-        hand_dllnode.value = ConsciousHandNode(hand_dllnode, cards,
-                                               hand_pointer_nodes, str(hand))
+        hand_dllnode.value = ConsciousHandNode(hand, hand_dllnode, hand_pointer_nodes)
 
     def select_card(self, card: int):
-        assert self[card], "Bug: this card is not here."  # TODO: ehh
-        emit('select card', {'card': card}, broadcast=False)
+        emit('select card', {'card': int(card)}, broadcast=False)
         for hand_pointer_node in self[card]:
             hand_node = hand_pointer_node.hand_dllnode.value
             hand_node.increment_num_selected_cards()
 
     def deselect_card(self, card: int):
-        assert self[card], "Bug: this card is not here."  # TODO: ehh
-        emit('deselect card', {'card': card}, broadcast=False)
+        emit('deselect card', {'card': int(card)}, broadcast=False)
         for hand_pointer_node in self[card]:
             hand_node = hand_pointer_node.hand_dllnode.value
             hand_node.decrement_num_selected_cards()
 
     def remove_card(self, card: int) -> None:
-        # TODO: change this to just calling del on the hand node
-        assert self[card], "Bug: this card is not here."  # TODO: ehh
+        emit('remove card', {'card': int(card)}, broadcast=False)
         for hand_pointer_node in self[card]:
             hand_pointer_dllnode = hand_pointer_node.hand_pointer_dllnode
             hand_dllnode = hand_pointer_node.hand_dllnode
@@ -68,6 +65,26 @@ class CardHandChamber:
             hand_node.remove_hand()
             self._hands.remove(hand_dllnode)
         self[card] = None
+        self._num_cards -= 1
+        if self._num_cards == 0:
+            emit('finished')
+
+    def clear_hands(self) -> None:
+        for hand_node in self._hands:
+            hand_node.remove_hand()
+        self._hands.clear()
+        self._reset_card_dllists()
+
+    def _reset_card_dllists(self) -> None:  # TODO: can be done better
+        for card, dll in enumerate(self._cards):
+            if dll is not None:
+                self[card].clear()
+
+    def contains_hand(self, hand: Hand) -> bool:
+        for hand_node in self._hands:
+            if hand_node.hand == hand:
+                return True
+        return False
 
 
 class HandPointerNode:  # contained by a hand_pointer_dllnode
@@ -83,13 +100,12 @@ class HandPointerNode:  # contained by a hand_pointer_dllnode
 
 
 class ConsciousHandNode:  # contained by a hand_dllnode
-    def __init__(self, hand_dllnode: dllistnode, cards: List[int],
-                 hand_pointer_nodes: List[HandPointerNode], dom_id: str) -> None:
-        self._dom_id = dom_id
+    def __init__(self, hand: Hand, hand_dllnode: dllistnode,
+                 hand_pointer_nodes: List[HandPointerNode]) -> None:
+        self.hand = Hand.copy(hand)
         self._num_cards_selected = 0
-        self._cards = cards
         self._card_nodes: List[CardNode] = list()
-        for card, hand_pointer_node in zip(cards, hand_pointer_nodes):
+        for card, hand_pointer_node in zip(hand, hand_pointer_nodes):
             hand_pointer_node.set_hand_dllnode(hand_dllnode)
             card_node = CardNode(card, hand_pointer_node.hand_pointer_dllnode)
             self._card_nodes.append(card_node)
@@ -98,24 +114,24 @@ class ConsciousHandNode:  # contained by a hand_dllnode
     def __iter__(self):
         return self._card_nodes.__iter__()
 
-    def __repr__(self):
-        return self._dom_id
+    def __str__(self):
+        return str(self.hand)
 
     def increment_num_selected_cards(self) -> None:
         self._num_cards_selected += 1
         if self._num_cards_selected == 1:
-            emit('select hand', {'dom_id': self._dom_id}, broadcast=False)
+            emit('select hand', {'hand': str(self)}, broadcast=False)
 
     def decrement_num_selected_cards(self) -> None:
         self._num_cards_selected -= 1
         if self._num_cards_selected == 0:
-            emit('deselect hand', {'dom_id': self._dom_id}, broadcast=False)
-        
+            emit('deselect hand', {'hand': str(self)}, broadcast=False)
+
     def store_hand(self) -> None:
-        emit('store hand', {'dom_id': self._dom_id, 'cards': self._cards}, broadcast=False)
+        emit('store hand', {'hand': str(self), 'cards': list(map(int, self.hand))}, broadcast=False)
 
     def remove_hand(self) -> None:
-        emit('remove hand', {'dom_id': self._dom_id}, broadcast=False)
+        emit('remove hand', {'hand': str(self)}, broadcast=False)
 
 
 class CardNode:

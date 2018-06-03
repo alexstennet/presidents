@@ -106,6 +106,10 @@ class Hand(object):
         hd: Dict[str, Union[np.ndarray, int]] = loads(json_hand)
         return cls(hd['_cards'], hd['_id'], hd['_insertion_index'])
 
+    @classmethod
+    def copy(cls, hand) -> "Hand":
+        return cls(hand._cards, hand._id, hand._insertion_index)
+
 
     def __getitem__(self, key: Union[int, slice]) -> int:
         return self._cards[key]
@@ -228,6 +232,11 @@ class Hand(object):
     @property
     def id_desc(self) -> str:
         return id_desc_dict[self._id]
+
+    def reset(self) -> None:
+        self._cards = np.zeros(shape=5, dtype=np.uint8)
+        self._id = 0
+        self._insertion_index = 4
 
     def intersects(self, other: "Hand") -> bool:  # TODO: refine this
         for card1 in self:

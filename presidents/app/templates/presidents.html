@@ -20,7 +20,7 @@
                     $('#chat').scrollTop($('#chat')[0].scrollHeight);
                 });
 
-                socket.on('current hand', function(data) {
+                socket.on('update current hand', function(data) {
                     $('#current_hand').text(data.hand);
                 });
 
@@ -58,19 +58,19 @@
 
                 socket.on('store hand', function(data) {
                     var hand = $('<button>',
-                    {   
-                        id: data.dom_id,
-                        text: data.dom_id,
+                    {
+                        id: data.hand,
+                        text: data.hand,
                         css: {
                             'color': 'white',
-                            'background': data.color
+                            'background': 'green'
                         },
                         click: function() {
                             clickHand($(this).data('cards'));
                         }
-                    }).data({
-                        cards: data.cards
-                    });
+                    }).data(
+                        'cards', data.cards
+                    );
                     hand.appendTo($('#hands'));
                 });
 
@@ -106,19 +106,26 @@
                 });
 
                 socket.on('clear hand in play', function() {
-                    $('#hand_in_play').html("<br>")
+                    $('#hand_in_play').html("<br>");
                 });
 
                 socket.on('select hand', function(data) {
-                    $('#' + data.dom_id).css({'background' : 'red'});
+                    document.getElementById(data.hand).style.backgroundColor = "red";
+                    // the line below doesn't work cuz apparently there's a weird
+                    // interaction between the pound sign and the hand str
+                    $('#' + data.hand).css({'background' : 'red'});
                 });
 
                 socket.on('deselect hand', function(data) {
-                    $('#' + data.dom_id).css({'background': 'green'});
+                    document.getElementById(data.hand).style.backgroundColor = "green";
                 });
 
                 socket.on('remove hand', function(data) {
-                    $('#' + data.dom_id).remove();
+                    document.getElementById(data.hand).remove();
+                });
+
+                socket.on('finished', function(data) {
+                    socket.emit('player finish');
                 });
 
                 $('#text').keypress(function(e) {
