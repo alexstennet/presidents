@@ -1,1 +1,1 @@
-web: gunicorn --worker-class eventlet -w 1 presidents:app
+web: presidents:app
