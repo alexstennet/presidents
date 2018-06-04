@@ -1,12 +1,15 @@
 import numpy as np
 from llist import sllist, sllistnode, dllist, dllistnode
-from typing import List, Union
+from typing import List, Union, Generator
 from hand import Hand
 from flask_socketio import emit
 
 
 # TODO: use del for hand?
 # TODO: add is not None checks for cards existing
+# TODO: utilize weakrefs from the hand nodes to their parents instead of
+#       storing the card number in a card node allowing to get rid of 
+#       card nodes
 
 
 class CardHandChamber:
@@ -14,13 +17,14 @@ class CardHandChamber:
     storage for cards and hands specifically designed for fast runtimes
     in context of front end interaction
     """
-    def __init__(self, cards: np.ndarray) -> None:
+    def __init__(self, cards: np.ndarray, player_sid: str) -> None:
         self._num_cards = 0
         self._cards = np.empty(shape=53, dtype=np.object)
         for card in cards:
             self[card] = dllist()  # a dllist of HandPointerNodes
             self._num_cards += 1
         self._hands: dllist = dllist()  # a dllist of ConsciousHandNodes
+        self._player_sid = player_sid
 
     def __getitem__(self, key: Union[int, slice]) -> dllist:
         return self._cards[key]
@@ -41,19 +45,18 @@ class CardHandChamber:
         hand_dllnode.value = ConsciousHandNode(hand, hand_dllnode, hand_pointer_nodes)
 
     def select_card(self, card: int):
-        emit('select card', {'card': int(card)}, broadcast=False)
+        emit('select card', {'card': int(card)}, room=self._player_sid)
         for hand_pointer_node in self[card]:
             hand_node = hand_pointer_node.hand_dllnode.value
             hand_node.increment_num_selected_cards()
 
     def deselect_card(self, card: int):
-        emit('deselect card', {'card': int(card)}, broadcast=False)
+        emit('deselect card', {'card': int(card)}, room=self._player_sid)
         for hand_pointer_node in self[card]:
             hand_node = hand_pointer_node.hand_dllnode.value
             hand_node.decrement_num_selected_cards()
 
     def remove_card(self, card: int) -> None:
-        emit('remove card', {'card': int(card)}, broadcast=False)
         for hand_pointer_node in self[card]:
             hand_pointer_dllnode = hand_pointer_node.hand_pointer_dllnode
             hand_dllnode = hand_pointer_node.hand_dllnode
@@ -64,10 +67,16 @@ class CardHandChamber:
                 self[card_node.card].remove(card_node.hand_pointer_dllnode)
             hand_node.remove_hand()
             self._hands.remove(hand_dllnode)
+        emit('remove card', {'card': int(card)}, room=self._player_sid)
         self[card] = None
         self._num_cards -= 1
         if self._num_cards == 0:
             emit('finished')
+
+    def add_card(self, card: int) -> None:
+        self[card] = dllist()
+        self._num_cards += 1
+        emit('add card', {'card': int(card)}, room=self._player_sid)
 
     def clear_hands(self) -> None:
         for hand_node in self._hands:
@@ -80,11 +89,19 @@ class CardHandChamber:
             if dll is not None:
                 self[card].clear()
 
+    def contains_card(self, card: int) -> bool:
+        return self._cards[card] is not None
+
     def contains_hand(self, hand: Hand) -> bool:
         for hand_node in self._hands:
             if hand_node.hand == hand:
                 return True
         return False
+
+    def iter_cards(self) -> Generator[int, None, None]:
+        for card in range(1, 53):
+            if self.contains_card(card):
+                yield card
 
 
 class HandPointerNode:  # contained by a hand_pointer_dllnode

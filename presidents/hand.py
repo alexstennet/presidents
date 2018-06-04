@@ -107,9 +107,8 @@ class Hand(object):
         return cls(hd['_cards'], hd['_id'], hd['_insertion_index'])
 
     @classmethod
-    def copy(cls, hand) -> "Hand":
+    def copy(cls, hand: "Hand") -> "Hand":
         return cls(hand._cards, hand._id, hand._insertion_index)
-
 
     def __getitem__(self, key: Union[int, slice]) -> int:
         return self._cards[key]

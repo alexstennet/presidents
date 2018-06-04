@@ -46,6 +46,10 @@
                         $("#alert").html("<br>");
                     }, 3000);
                 });
+
+                socket.on('clear cards', function() {
+                    $('#cards').html("<br>")
+                });
                 
                 // make it more clear that this just clears the client's display and nothing else
                 socket.on('clear current hand', function() {
@@ -79,6 +83,36 @@
                     $('#current_hand').html("<br>");
                 });
 
+                socket.on('add card', function(data) {
+                    var card = $('<button>',
+                    {
+                        id: data.card, // TODO: using the id as the card value being passed to backend, what happens when you change this in the html locally?
+                        text: short_names[data.card],
+                        css: {
+                            'color': 'white',
+                            'background': 'green'
+                        },
+                        click: function() {
+                            clickCard(this.id);
+                        },
+                        
+                    }).hover(  // TODO: how to do this within the jquery dom constructor? 
+                        function() {
+                            $('#card_name').text(card_names[parseInt(this.id)]);
+                        },
+                        function() {
+                            $('#card_name').html("<br>");
+                        }
+                    )
+                    for (i = data.card - 1; i > 0; i -= 1) {
+                        if ($('#' + i).length) {
+                            $('#' + i).after(card);
+                            return;
+                        }
+                    }
+                    card.prependTo($('#cards'));
+                });
+
                 socket.on('assign cards', function(data) {
                     for (i = 0; i < data.cards.length; i += 1) {
                         var card = $('<button>',
@@ -105,6 +139,42 @@
                     }
                 });
 
+                socket.on('add trading options', function() {
+                    for (i = 1; i < 14; i += 1) {
+                        var card = $('<button>',
+                        {
+                            text: card_values[i],
+                            css: {
+                                'color': 'white',
+                                'background': 'green'
+                            },
+                            click: function() {
+                                ask_for_card($(this).data('value'));
+                            },
+                            
+                        }).data(
+                            'value', i
+                        );
+                        card.appendTo($('#trading_options'));
+                    }
+                });
+
+                socket.on('add give card button', function() {
+                    var btn = $('<button>',
+                    {
+                        text: 'give card',
+                        css: {
+                            'color': 'white',
+                            'background': 'green'
+                        },
+                        click: function() {
+                            give_current_card();
+                        },
+                        
+                    })
+                    btn.appendTo($('#give_current_card_button'));
+                });
+
                 socket.on('clear hand in play', function() {
                     $('#hand_in_play').html("<br>");
                 });
@@ -113,7 +183,7 @@
                     document.getElementById(data.hand).style.backgroundColor = "red";
                     // the line below doesn't work cuz apparently there's a weird
                     // interaction between the pound sign and the hand str
-                    $('#' + data.hand).css({'background' : 'red'});
+                    // $('#' + data.hand).css({'background' : 'red'});
                 });
 
                 socket.on('deselect hand', function(data) {
@@ -124,8 +194,16 @@
                     document.getElementById(data.hand).remove();
                 });
 
-                socket.on('finished', function(data) {
+                socket.on('finished', function() {
                     socket.emit('player finish');
+                });
+
+                socket.on('remove give card button', function() {
+                    $('#give_current_card_button').detach();
+                });
+
+                socket.on('remove trading options', function() {
+                    $('#trading_options').detach();
                 });
 
                 $('#text').keypress(function(e) {
@@ -179,7 +257,14 @@
                 socket.emit('pass current hand');
             };
 
-            
+            function ask_for_card(value) {
+                socket.emit('ask for card', {'value': value});
+            };
+
+            function give_current_card() {
+                socket.emit('give current card');
+            };
+
         </script>
     </head>
 
@@ -194,7 +279,9 @@
         <button onclick="store_current_hand()">store current hand</button><button onclick="clear_current_hand()">clear current hand</button><button onclick="clear_stored_hands()">clear stored hands</button><br><br>
         <div id="cards"></div><p id="card_name"><br></p>
         <div id="hands"></div><br>
-        <a href="#" onclick="leave_room();">Leave this room</a><br><br>
+        <div id="trading_options"></div>
+        <div id="give_current_card_button"></div>
+        <!-- <a href="#" onclick="leave_room();">Leave this room</a><br><br> -->
         <script type="text/javascript" charset="utf-8">
             var card_names = [  // TODO: where to put this?
                 null,
@@ -305,7 +392,10 @@
                 '2♦',
                 '2♥',
                 '2♠',
-            ]
+            ];
+            card_values = [
+                null, '3', '4', '5', '6', '7', '8', '9', '10', 'j', 'q', 'k', 'a', '2'
+            ];
         </script>
     </body>
 </html>
