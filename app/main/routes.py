@@ -22,7 +22,6 @@ def index():
 
 @main.route('/presidents')
 def presidents():
-    session['hand'] = Hand().to_json()
     name = session.get('name', '')
     room = session.get('room', '')
     if name == '' or room == '':
