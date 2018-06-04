@@ -1,1 +1,1 @@
-web: python3 presidents:app
+web: presidents:app
