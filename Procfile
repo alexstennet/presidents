@@ -1,1 +1,1 @@
-web: python3 presidents.py
+web: gunicorn --worker-class eventlet -w 1 presidents:app
