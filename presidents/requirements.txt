@@ -1,5 +1,9 @@
 flask
+flask-socketio
 flask_wtf
 wtforms
 numpy
+bidict
+llist
+mypy_extensions
 deepdish

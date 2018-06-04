@@ -1,8 +1,6 @@
 from flask import render_template, session, redirect, url_for, request
 from . import main
 from .forms import LoginForm
-from hand import Hand
-from hand_list import HandList
 
 @main.route('/')
 def base():
