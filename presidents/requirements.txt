@@ -6,4 +6,5 @@ numpy
 bidict
 llist
 mypy_extensions
+gunicorn
 deepdish
