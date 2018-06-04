@@ -7,5 +7,5 @@ bidict
 llist
 mypy_extensions
 gunicorn
-gevent
+eventlet
 deepdish
