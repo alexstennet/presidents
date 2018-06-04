@@ -624,4 +624,3 @@ def message_default_next_player(room):
 
 def message_round_over_trading_begins(room):
     emit('message', {'msg': f"SERVER: The round is over! Trading starts now!"}, room=room)
-
